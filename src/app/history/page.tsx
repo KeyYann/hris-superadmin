@@ -9,21 +9,13 @@ import {
 const ITEMS_PER_PAGE = 10;
 
 export default function HistoryPage() {
-  // Pull data from Global Context
   const { timeOffRequests } = useNotifications();
   
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState('All');
   const [sortOrder, setSortOrder] = useState('Newest');
 
-  // Pagination State
   const [currentPage, setCurrentPage] = useState(1);
-
-  // --- LOGIC: FILTER & SORT ---
-  // History typically shows all past/submitted requests. 
-  // We can choose to show only Approved/Declined or All including Pending.
-  // Based on your image "Filed a Vacation Leave...", it implies a log of actions.
-  // We will list all requests as "logs".
 
   const filteredData = timeOffRequests.filter(item => {
     const matchesSearch = item.user.toLowerCase().includes(searchQuery.toLowerCase()) || 
@@ -37,12 +29,10 @@ export default function HistoryPage() {
     return 0; 
   });
 
-  // --- LOGIC: PAGINATION ---
   const totalPages = Math.ceil(filteredData.length / ITEMS_PER_PAGE);
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
   const paginatedData = filteredData.slice(startIndex, startIndex + ITEMS_PER_PAGE);
 
-  // Reset page on filter change
   useEffect(() => {
     setCurrentPage(1);
   }, [searchQuery, typeFilter, sortOrder]);
@@ -119,28 +109,26 @@ export default function HistoryPage() {
             </thead>
             <tbody className="divide-y divide-gray-50">
               {paginatedData.map((log) => {
-                 // Construct description string similar to screenshot
-                 // "Filed a Vacation Leave with leave date: 2026-02-16 to 2026-02-16"
-                 // Note: Our mock data only has single date, we can calculate end date or just show start
-                 const desc = `Filed a ${log.type} with leave date: ${log.leaveDate} (${log.duration}${log.isHalfDay ? ', Half Day' : ''})`;
+                  // UPDATED LOGIC: If isHalfDay is true, ignore duration string and just say "Half Day"
+                  const durationText = log.isHalfDay ? "Half Day" : log.duration;
+                  const desc = `Filed a ${log.type} with leave date: ${log.leaveDate} (${durationText})`;
 
-                 return (
-                  <tr key={log.id} className="hover:bg-gray-50/50 transition-colors group">
-                    <td className="p-4 pl-6 align-top">
-                      <span className="font-bold text-gray-700 text-sm">Leave Application</span>
-                    </td>
-                    <td className="p-4 align-top">
-                      <div className="text-sm font-medium text-gray-600">{log.user}</div>
-                      {/* You can show email if available in context mapping, for now using name as User ID */}
-                    </td>
-                    <td className="p-4 align-top">
-                      <p className="text-sm text-gray-600 leading-snug">{desc}</p>
-                    </td>
-                    <td className="p-4 text-right pr-6 align-top">
-                      <span className="text-sm font-medium text-gray-500">{log.submitted}</span>
-                    </td>
-                  </tr>
-                 );
+                  return (
+                   <tr key={log.id} className="hover:bg-gray-50/50 transition-colors group">
+                     <td className="p-4 pl-6 align-top">
+                       <span className="font-bold text-gray-700 text-sm">Leave Application</span>
+                     </td>
+                     <td className="p-4 align-top">
+                       <div className="text-sm font-medium text-gray-600">{log.user}</div>
+                     </td>
+                     <td className="p-4 align-top">
+                       <p className="text-sm text-gray-600 leading-snug">{desc}</p>
+                     </td>
+                     <td className="p-4 text-right pr-6 align-top">
+                       <span className="text-sm font-medium text-gray-500">{log.submitted}</span>
+                     </td>
+                   </tr>
+                  );
               })}
               
               {paginatedData.length === 0 && (

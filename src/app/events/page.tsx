@@ -7,26 +7,28 @@ import {
   setMonth, setYear, getYear, getMonth
 } from 'date-fns';
 import { ChevronLeft, ChevronRight, Plus, Loader2 } from 'lucide-react';
+import { useNotifications } from '@/context/NotificationContext'; // 1. Import Context
 
 export default function EventsPage() {
+  const { calendarEvents, addCalendarEvent } = useNotifications(); // 2. Consume Context
+  
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [events, setEvents] = useState<any[]>([]);
+  const [mergedEvents, setMergedEvents] = useState<any[]>([]); // State for combined events
   const [loading, setLoading] = useState(true);
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [newEvent, setNewEvent] = useState({ title: '', date: '', description: '' });
 
-  // --- 1. FETCH HOLIDAYS ---
+  // --- 1. FETCH HOLIDAYS & MERGE WITH CONTEXT EVENTS ---
   useEffect(() => {
-    const fetchHolidays = async () => {
+    const fetchAndMergeEvents = async () => {
       setLoading(true);
       try {
         const year = currentDate.getFullYear();
+
+        // 1. Fetch Public Holidays
         const response = await fetch(`https://date.nager.at/api/v3/publicholidays/${year}/PH`);
-        
-        if (!response.ok) throw new Error('Failed to fetch');
-        
-        const data = await response.json();
+        const data = response.ok ? await response.json() : [];
 
         const apiHolidays = data.map((holiday: any) => ({
           id: `holiday-${holiday.date}`,
@@ -36,23 +38,21 @@ export default function EventsPage() {
           description: holiday.localName
         }));
 
-        const manualFestivals = [
-          { id: 'fest-1', title: 'Sinulog Festival', date: `${year}-01-18`, type: 'festival' },
-          { id: 'fest-2', title: 'Panagbenga', date: `${year}-02-22`, type: 'festival' },
-          { id: 'fest-3', title: 'MassKara Festival', date: `${year}-10-25`, type: 'festival' },
-        ];
+        // 2. Merge API Holidays with Context Events (Mock Data + User Added)
+        // This ensures the 5 mock events from Feb 12 onwards appear here
+        setMergedEvents([...apiHolidays, ...calendarEvents]);
 
-        setEvents([...apiHolidays, ...manualFestivals]);
       } catch (error) {
         console.error("Failed to fetch holidays", error);
-        setEvents([]); 
+        // Fallback: just show context events if API fails
+        setMergedEvents([...calendarEvents]); 
       } finally {
         setLoading(false);
       }
     };
 
-    fetchHolidays();
-  }, [currentDate.getFullYear()]); 
+    fetchAndMergeEvents();
+  }, [currentDate.getFullYear(), calendarEvents]); // Re-run when year changes OR context events change
 
   // --- CALENDAR LOGIC ---
   const monthStart = startOfMonth(currentDate);
@@ -62,10 +62,10 @@ export default function EventsPage() {
   const calendarDays = eachDayOfInterval({ start: startDate, end: endDate });
 
   const getEventsForDay = (day: Date) => {
-    return events.filter(event => isSameDay(parseISO(event.date), day));
+    return mergedEvents.filter(event => isSameDay(parseISO(event.date), day));
   };
 
-  // --- FILTER HANDLERS ---
+  // --- HANDLERS ---
   const handleYearChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     setCurrentDate(setYear(currentDate, parseInt(e.target.value)));
   };
@@ -76,19 +76,19 @@ export default function EventsPage() {
 
   const handleAddEvent = (e: React.FormEvent) => {
     e.preventDefault();
-    const eventToAdd = {
-      id: Math.random(),
-      title: newEvent.title,
-      date: newEvent.date,
-      type: 'personal',
-      description: newEvent.description,
-    };
-    setEvents([...events, eventToAdd]);
+    
+    // Add to Global Context instead of local state
+    addCalendarEvent({
+        title: newEvent.title,
+        date: newEvent.date,
+        description: newEvent.description,
+        type: 'personal' // Default type for user-added events
+    });
+
     setIsModalOpen(false);
     setNewEvent({ title: '', date: '', description: '' });
   };
 
-  // Generate Year Options (Current Year +/- 5 Years)
   const currentYear = getYear(new Date());
   const years = Array.from({ length: 11 }, (_, i) => currentYear - 5 + i);
   const months = [
@@ -99,15 +99,15 @@ export default function EventsPage() {
   return (
     <div className="w-full mx-auto flex flex-col h-[calc(100vh-2rem)]">
       
-      {/* CALENDAR CONTAINER (Full Height) */}
+      {/* CALENDAR CONTAINER */}
       <div className="flex-1 bg-white rounded-3xl shadow-sm border border-gray-100 flex flex-col overflow-hidden">
         
-        {/* --- CUSTOM HEADER / TOOLBAR --- */}
+        {/* --- HEADER --- */}
         <div className="flex flex-col md:flex-row items-center justify-between p-4 md:p-6 border-b border-gray-100 gap-4">
           
-          {/* LEFT: Filters (Month & Year) */}
+          {/* Filters */}
           <div className="flex items-center gap-3 w-full md:w-auto">
-             <div className="relative">
+              <div className="relative">
                 <select 
                   value={getMonth(currentDate)} 
                   onChange={handleMonthChange}
@@ -118,11 +118,11 @@ export default function EventsPage() {
                   ))}
                 </select>
                 <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-500">
-                  <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
+                  <ChevronRight size={14} className="rotate-90"/>
                 </div>
-             </div>
+              </div>
 
-             <div className="relative">
+              <div className="relative">
                 <select 
                   value={getYear(currentDate)} 
                   onChange={handleYearChange}
@@ -133,17 +133,15 @@ export default function EventsPage() {
                   ))}
                 </select>
                 <div className="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 text-gray-500">
-                  <svg className="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20"><path d="M9.293 12.95l.707.707L15.657 8l-1.414-1.414L10 10.828 5.757 6.586 4.343 8z"/></svg>
+                  <ChevronRight size={14} className="rotate-90"/>
                 </div>
-             </div>
-             
-             {loading && <Loader2 className="animate-spin text-brand ml-2" size={20}/>}
+              </div>
+              
+              {loading && <Loader2 className="animate-spin text-brand ml-2" size={20}/>}
           </div>
 
-          {/* RIGHT: Controls (Add Event + Navigation) */}
+          {/* Controls */}
           <div className="flex items-center gap-3 w-full md:w-auto justify-end">
-            
-            {/* ADD EVENT BUTTON (Moved Here) */}
             <button 
               onClick={() => setIsModalOpen(true)}
               className="flex items-center gap-2 px-4 py-2 bg-brand text-white rounded-xl font-bold shadow-lg shadow-orange-100 hover:shadow-orange-200 hover:-translate-y-0.5 transition-all text-sm whitespace-nowrap"
@@ -153,13 +151,11 @@ export default function EventsPage() {
             
             <div className="h-6 w-px bg-gray-200 mx-1"></div>
 
-            {/* NAVIGATION */}
             <div className="flex items-center bg-gray-50 rounded-xl p-1 border border-gray-100">
               <button onClick={() => setCurrentDate(subMonths(currentDate, 1))} className="p-1.5 hover:bg-white hover:shadow-sm rounded-lg text-gray-500 transition-all"><ChevronLeft size={18}/></button>
               <button onClick={() => setCurrentDate(new Date())} className="px-3 py-1 text-xs font-bold text-gray-600 hover:text-brand uppercase tracking-wider">Today</button>
               <button onClick={() => setCurrentDate(addMonths(currentDate, 1))} className="p-1.5 hover:bg-white hover:shadow-sm rounded-lg text-gray-500 transition-all"><ChevronRight size={18}/></button>
             </div>
-
           </div>
         </div>
 
@@ -194,14 +190,21 @@ export default function EventsPage() {
                 </div>
                 
                 {/* Event Chips */}
-                <div className="flex-1 flex flex-col gap-1 mt-1">
+                <div className="flex-1 flex flex-col gap-1 mt-1 overflow-hidden">
                   {dayEvents.map((evt: any) => {
-                    let badgeStyle = "bg-blue-50 text-blue-700 border-blue-100"; 
+                    // Dynamic Styles based on Event Type
+                    let badgeStyle = "bg-gray-100 text-gray-600 border-gray-200"; 
+                    
                     if (evt.type === 'holiday') badgeStyle = "bg-red-50 text-red-600 border-red-100";
                     if (evt.type === 'festival') badgeStyle = "bg-purple-50 text-purple-600 border-purple-100";
+                    if (evt.type === 'company') badgeStyle = "bg-blue-50 text-blue-600 border-blue-100";
+                    if (evt.type === 'birthday') badgeStyle = "bg-pink-50 text-pink-600 border-pink-100";
+                    if (evt.type === 'deadline') badgeStyle = "bg-amber-50 text-amber-700 border-amber-100";
+                    if (evt.type === 'personal') badgeStyle = "bg-emerald-50 text-emerald-600 border-emerald-100";
 
                     return (
-                      <div key={evt.id} className={`text-[10px] px-2 py-1.5 rounded-md border truncate font-medium cursor-pointer hover:opacity-80 transition-opacity ${badgeStyle}`}>
+                      <div key={evt.id} className={`text-[10px] px-2 py-1 rounded-md border truncate font-bold cursor-pointer hover:opacity-80 transition-opacity ${badgeStyle}`} title={evt.description}>
+                        {evt.type === 'birthday' ? '🎂 ' : ''}
                         {evt.title}
                       </div>
                     );
@@ -215,8 +218,8 @@ export default function EventsPage() {
 
       {/* --- ADD EVENT MODAL --- */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
             <div className="p-6 border-b border-gray-100 bg-gray-50/50">
               <h3 className="text-xl font-bold text-gray-800">Add New Event</h3>
             </div>
@@ -239,13 +242,23 @@ export default function EventsPage() {
                 <input 
                   required 
                   type="date" 
-                  // FIX: Disable past dates by setting min to Today
                   min={new Date().toISOString().split('T')[0]}
                   className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand/50 text-sm" 
                   value={newEvent.date} 
                   onChange={e => setNewEvent({...newEvent, date: e.target.value})} 
                 />
                 <p className="text-[10px] text-gray-400 text-right">Future dates only</p>
+              </div>
+
+              <div className="space-y-1">
+                 <label className="text-xs font-bold text-gray-500 uppercase tracking-wide">Description</label>
+                 <textarea
+                    rows={2}
+                    className="w-full p-3 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-brand/50 text-sm resize-none"
+                    placeholder="Brief details..."
+                    value={newEvent.description}
+                    onChange={e => setNewEvent({...newEvent, description: e.target.value})}
+                 />
               </div>
 
               <div className="flex gap-3 pt-2">

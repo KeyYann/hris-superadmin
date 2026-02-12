@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useNotifications } from '@/context/NotificationContext'; 
 import { 
   Search, ChevronRight, Building, Mail, 
-  ArrowLeft, Edit, Trash2, Briefcase, Filter, BriefcaseBusiness, User, Save
+  ArrowLeft, Edit, Save, Filter, BriefcaseBusiness, User, Shield
 } from 'lucide-react';
 
 export default function ManageCreditsPage() {
@@ -25,7 +25,6 @@ export default function ManageCreditsPage() {
   // 2. Sync local credits when a user is selected
   useEffect(() => {
     if (selectedUser) {
-      // Fetch credits from context for the selected user
       const userCredits = getUserCredits(selectedUser.id);
       setLocalCredits(userCredits);
     }
@@ -37,6 +36,9 @@ export default function ManageCreditsPage() {
   const getCompany = (email: string) => {
     return email.toLowerCase().includes('@bequik') ? 'BEQUIK' : 'ABBE';
   };
+
+  // Helper: Check if Admin
+  const isAdmin = (role: string) => role.toLowerCase().includes('admin');
 
   // Filter Logic
   const filteredUsers = users.filter(user => {
@@ -53,7 +55,6 @@ export default function ManageCreditsPage() {
   // 3. Handle Input Changes in the Table
   const handleCreditChange = (index: number, field: 'entitled' | 'balance', value: string) => {
     const updatedCredits = [...localCredits];
-    // Ensure we parse the number, default to 0 if empty
     updatedCredits[index] = { 
       ...updatedCredits[index], 
       [field]: parseFloat(value) || 0 
@@ -64,13 +65,11 @@ export default function ManageCreditsPage() {
   // 4. Handle Save Action
   const handleToggleEdit = () => {
     if (isEditing) {
-      // Save changes to Global Context
       if (selectedUser) {
         updateUserCredits(selectedUser.id, localCredits);
       }
       setIsEditing(false);
     } else {
-      // Enter Edit Mode
       setIsEditing(true);
     }
   };
@@ -155,12 +154,21 @@ export default function ManageCreditsPage() {
                         <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 mb-0.5">
                                 <h3 className="font-bold text-gray-800 truncate group-hover:text-brand transition-colors">{user.name}</h3>
-                                <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold border ${company === 'ABBE' ? 'bg-orange-50 text-orange-600 border-orange-100' : 'bg-indigo-50 text-indigo-600 border-indigo-100'}`}>
+                                <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold border mt-1 ${company === 'ABBE' ? 'bg-orange-50 text-orange-600 border-orange-100' : 'bg-indigo-50 text-indigo-600 border-indigo-100'}`}>
                                     {company}
                                 </span>
                             </div>
-                            <p className="text-xs text-gray-500 flex items-center gap-1"><Briefcase size={12} /> {user.role}</p>
-                            <p className="text-xs text-gray-400 flex items-center gap-1 mt-0.5"><Building size={12} /> {user.department}</p>
+                            
+                            {/* CONDITIONAL DISPLAY: Role for Admins, Department for Users */}
+                            {isAdmin(user.role) ? (
+                                <p className="text-xs text-gray-500 flex items-center gap-1 mt-0.5">
+                                    <Shield size={12} className="text-brand"/> {user.role}
+                                </p>
+                            ) : (
+                                <p className="text-xs text-gray-400 flex items-center gap-1 mt-0.5">
+                                    <Building size={12} /> {user.department}
+                                </p>
+                            )}
                         </div>
                         <ChevronRight className="text-gray-300 group-hover:text-brand group-hover:translate-x-1 transition-all" size={20} />
                     </button>
@@ -208,12 +216,18 @@ export default function ManageCreditsPage() {
                     </div>
                     
                     <div className="flex flex-wrap justify-center sm:justify-start gap-3 mt-3 text-sm font-medium text-gray-500">
-                      <span className="flex items-center gap-1.5 px-3 py-1 bg-gray-50 rounded-lg border border-gray-100">
-                        <Briefcase size={14} className="text-brand"/> {selectedUser.role}
-                      </span>
-                      <span className="flex items-center gap-1.5 px-3 py-1 bg-gray-50 rounded-lg border border-gray-100">
-                        <Building size={14} className="text-brand"/> {selectedUser.department}
-                      </span>
+                      
+                      {/* CONDITIONAL DISPLAY IN HEADER */}
+                      {isAdmin(selectedUser.role) ? (
+                          <span className="flex items-center gap-1.5 px-3 py-1 bg-gray-50 rounded-lg border border-gray-100">
+                            <Shield size={14} className="text-brand"/> {selectedUser.role}
+                          </span>
+                      ) : (
+                          <span className="flex items-center gap-1.5 px-3 py-1 bg-gray-50 rounded-lg border border-gray-100">
+                            <Building size={14} className="text-brand"/> {selectedUser.department}
+                          </span>
+                      )}
+
                       <span className="flex items-center gap-1.5 px-3 py-1 bg-gray-50 rounded-lg border border-gray-100">
                         <Mail size={14} className="text-brand"/> {selectedUser.email}
                       </span>
@@ -250,7 +264,6 @@ export default function ManageCreditsPage() {
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-gray-50 text-sm text-gray-700">
-                        {/* 5. Map over localCredits instead of derived data */}
                         {localCredits.map((credit: any, index: number) => (
                           <tr key={index} className="hover:bg-gray-50 transition-colors group">
                             <td className="p-5 pl-8 font-medium text-gray-900">{credit.type}</td>

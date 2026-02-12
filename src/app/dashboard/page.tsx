@@ -3,29 +3,34 @@
 import { useState, useEffect } from 'react';
 import { 
   Users, Calendar, Hourglass, Cloud, ChevronRight, MoreHorizontal, MapPin,
-  Sun, CloudRain, CloudLightning, CloudDrizzle, CloudFog, CloudSun 
+  Sun, CloudRain, CloudLightning, CloudDrizzle, CloudFog, CloudSun, Loader2 
 } from 'lucide-react';
 import Link from 'next/link';
 import { useNotifications } from '@/context/NotificationContext';
+import { startOfWeek, endOfWeek, isWithinInterval, parseISO, format } from 'date-fns';
 
 export default function DashboardPage() {
-  const { notifications, unreadCount, timeOffRequests, pendingTimeOffCount, totalUsers } = useNotifications();
+  const { notifications, unreadCount, timeOffRequests, pendingTimeOffCount, totalUsers, calendarEvents } = useNotifications();
 
-  // --- LOCAL STATE (Time & Weather) ---
+  // --- LOCAL STATE ---
   const [time, setTime] = useState<Date | null>(null);
   const [weather, setWeather] = useState<{ temp: number; condition: string; city: string; code: number } | null>(null);
   const [loadingWeather, setLoadingWeather] = useState(true);
+  
+  // Events State
+  const [weeklyEvents, setWeeklyEvents] = useState<any[]>([]);
+  const [loadingEvents, setLoadingEvents] = useState(true);
 
   // --- DERIVED STATS ---
   const approvedLeavesCount = timeOffRequests.filter(r => r.status === 'Approved').length;
   const recentNotifications = notifications.slice(0, 3);
 
   useEffect(() => {
-    // --- CLOCK LOGIC ---
+    // 1. CLOCK LOGIC
     setTime(new Date());
     const timer = setInterval(() => setTime(new Date()), 1000);
 
-    // --- WEATHER LOGIC ---
+    // 2. WEATHER LOGIC
     const fetchWeather = async () => {
       try {
         let lat = 14.5995;
@@ -64,9 +69,52 @@ export default function DashboardPage() {
       }
     };
 
+    // 3. EVENTS LOGIC (Fetch & Filter for Current Week)
+    const fetchWeeklyEvents = async () => {
+        setLoadingEvents(true);
+        try {
+            const today = new Date();
+            const year = today.getFullYear();
+            
+            // Fetch Holidays
+            const response = await fetch(`https://date.nager.at/api/v3/publicholidays/${year}/PH`);
+            const data = response.ok ? await response.json() : [];
+
+            const apiHolidays = data.map((holiday: any) => ({
+                id: `holiday-${holiday.date}`,
+                title: holiday.name,
+                date: holiday.date,
+                type: 'holiday',
+                description: holiday.localName
+            }));
+
+            // Combine API Holidays + Context Calendar Events
+            const allEvents = [...apiHolidays, ...calendarEvents];
+
+            // Filter: Is event in current week?
+            const start = startOfWeek(today);
+            const end = endOfWeek(today);
+
+            const currentWeekEvents = allEvents.filter(event => 
+                isWithinInterval(parseISO(event.date), { start, end })
+            );
+
+            // Sort by date
+            currentWeekEvents.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+            setWeeklyEvents(currentWeekEvents);
+        } catch (error) {
+            console.error("Error fetching events", error);
+        } finally {
+            setLoadingEvents(false);
+        }
+    };
+
     fetchWeather();
+    fetchWeeklyEvents();
+
     return () => clearInterval(timer);
-  }, []);
+  }, [calendarEvents]); // Re-run if context events change
 
   return (
     <div className="w-full mx-auto flex flex-col gap-6 md:gap-8">
@@ -74,7 +122,7 @@ export default function DashboardPage() {
       {/* --- HERO SECTION --- */}
       <div className="relative overflow-hidden bg-gradient-to-r from-gray-900 to-gray-800 text-white rounded-3xl p-6 md:p-12 shadow-xl flex flex-col md:flex-row justify-between items-center shrink-0 min-h-[300px]">
           
-          {/* DYNAMIC WEATHER BACKGROUND LAYER (Right Side Only) */}
+          {/* DYNAMIC WEATHER BACKGROUND LAYER */}
           <WeatherBackground code={weather?.code || 0} />
 
           {/* Content */}
@@ -161,15 +209,15 @@ export default function DashboardPage() {
       {/* --- MAIN CONTENT GRID --- */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 flex-1 min-h-0">
           <div className="lg:col-span-2 bg-white p-6 rounded-3xl shadow-sm border border-gray-100 flex flex-col min-h-[450px]">
-             <div className="flex justify-between items-center mb-8">
-               <div>
-                 <h3 className="text-lg md:text-xl font-bold text-gray-800">Leave Applications</h3>
-                 <p className="text-xs md:text-sm text-gray-400">Overview of employee leave requests</p>
-               </div>
-               <button className="p-2 hover:bg-gray-50 rounded-lg text-gray-400 transition-colors"><MoreHorizontal size={20}/></button>
-             </div>
-             
-             <div className="flex-1 overflow-x-auto pb-4">
+              <div className="flex justify-between items-center mb-8">
+                <div>
+                  <h3 className="text-lg md:text-xl font-bold text-gray-800">Leave Applications</h3>
+                  <p className="text-xs md:text-sm text-gray-400">Overview of employee leave requests</p>
+                </div>
+                <button className="p-2 hover:bg-gray-50 rounded-lg text-gray-400 transition-colors"><MoreHorizontal size={20}/></button>
+              </div>
+              
+              <div className="flex-1 overflow-x-auto pb-4">
                 <div className="h-full flex flex-col min-w-[600px] xl:min-w-0">
                   <div className="flex-1 flex items-end justify-between gap-4 px-6 relative">
                       <div className="absolute inset-0 flex flex-col justify-between pointer-events-none">
@@ -194,17 +242,41 @@ export default function DashboardPage() {
           </div>
 
           <div className="flex flex-col gap-6">
+             {/* UPCOMING EVENTS CARD */}
              <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100">
                 <div className="flex justify-between items-center mb-4">
                   <h3 className="font-bold text-gray-800">Upcoming Events</h3>
                   <Link href="/events" className="text-xs font-semibold text-brand hover:underline">View Calendar</Link>
                 </div>
-                <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100 text-center py-8">
-                  <Calendar size={32} className="mx-auto text-gray-300 mb-2"/>
-                  <p className="text-sm text-gray-400 italic">No events scheduled.</p>
-                </div>
+                
+                {loadingEvents ? (
+                    <div className="py-8 flex justify-center">
+                        <Loader2 className="animate-spin text-gray-300" size={24} />
+                    </div>
+                ) : weeklyEvents.length > 0 ? (
+                    <div className="space-y-3">
+                        {weeklyEvents.map((evt) => (
+                            <div key={evt.id} className="flex items-center gap-3 p-3 bg-gray-50 border border-gray-100 rounded-2xl hover:bg-orange-50 hover:border-orange-100 transition-colors group">
+                                <div className={`w-12 h-12 rounded-xl flex flex-col items-center justify-center shrink-0 border ${evt.type === 'holiday' ? 'bg-red-50 text-red-600 border-red-100' : 'bg-purple-50 text-purple-600 border-purple-100'}`}>
+                                    <span className="text-[10px] font-bold uppercase">{format(parseISO(evt.date), 'MMM')}</span>
+                                    <span className="text-lg font-bold leading-none">{format(parseISO(evt.date), 'd')}</span>
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-bold text-gray-800 truncate">{evt.title}</p>
+                                    <p className="text-xs text-gray-500 capitalize">{evt.type}</p>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                ) : (
+                    <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100 text-center py-8">
+                      <Calendar size={32} className="mx-auto text-gray-300 mb-2"/>
+                      <p className="text-sm text-gray-400 italic">No events this week.</p>
+                    </div>
+                )}
              </div>
 
+             {/* NOTIFICATIONS CARD */}
              <div className="bg-white p-6 rounded-3xl shadow-sm border border-gray-100 flex-1">
                 <div className="flex justify-between items-center mb-6">
                   <h3 className="font-bold text-gray-800">Notifications</h3>
@@ -266,7 +338,6 @@ export default function DashboardPage() {
 
 // --- SUB-COMPONENTS ---
 
-// UPDATED: Background Component (Right Side Only, Transparent)
 function WeatherBackground({ code }: { code: number }) {
   const Wrapper = ({ children }: { children: React.ReactNode }) => (
     <div className="absolute inset-y-0 right-0 w-2/3 md:w-1/2 overflow-hidden pointer-events-none z-0 mix-blend-screen">
@@ -275,13 +346,10 @@ function WeatherBackground({ code }: { code: number }) {
     </div>
   );
 
-  // SUNNY (0) - UPDATED RAYS
   if (code === 0) {
     return (
       <Wrapper>
-        {/* Warm glow on bottom-right */}
         <div className="absolute -bottom-10 -right-10 w-[400px] h-[400px] bg-orange-500/10 rounded-full blur-[80px] animate-pulse"></div>
-        {/* HUGE Static Rays from bottom-right (blinking) */}
         <div className="absolute bottom-[-200px] right-[-200px] w-[1200px] h-[1200px] animate-pulse-slow origin-center -rotate-90"
              style={{ background: 'conic-gradient(from 0deg, transparent 0deg, white 15deg, transparent 30deg, white 45deg, transparent 60deg, white 75deg, transparent 90deg)' }}>
         </div>
@@ -289,7 +357,6 @@ function WeatherBackground({ code }: { code: number }) {
     );
   }
 
-  // CLOUDY / PARTLY CLOUDY (1-3)
   if (code >= 1 && code <= 3) {
     return (
       <Wrapper>
@@ -300,17 +367,15 @@ function WeatherBackground({ code }: { code: number }) {
     );
   }
 
-  // RAIN / DRIZZLE / SHOWERS (51-65, 80-82)
   if ((code >= 51 && code <= 65) || (code >= 80 && code <= 82)) {
     return (
       <Wrapper>
-        {/* Rain droplets */}
         {[...Array(15)].map((_, i) => (
           <div 
             key={i}
             className="absolute top-[-20px] w-[1px] h-[30px] bg-blue-300/20 animate-rain"
             style={{ 
-              left: `${20 + Math.random() * 80}%`, // Concentrate on right side
+              left: `${20 + Math.random() * 80}%`, 
               animationDuration: `${0.5 + Math.random()}s`,
               animationDelay: `${Math.random()}s`
             }}
@@ -320,11 +385,10 @@ function WeatherBackground({ code }: { code: number }) {
     );
   }
 
-  // THUNDERSTORM (95+)
   if (code >= 95) {
     return (
       <Wrapper>
-        <div className="absolute inset-0 bg-white/5 animate-pulse duration-100"></div> {/* Lightning flash */}
+        <div className="absolute inset-0 bg-white/5 animate-pulse duration-100"></div>
         {[...Array(20)].map((_, i) => (
           <div 
             key={i}
@@ -340,7 +404,6 @@ function WeatherBackground({ code }: { code: number }) {
     );
   }
 
-  // Default
   return null;
 }
 

@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useNotifications } from '@/context/NotificationContext';
 import { 
-  Trash2, RotateCcw, Search, User, Building, FileText, AlertTriangle, Shield
+  Trash2, RotateCcw, Search, User, Building, FileText, AlertTriangle, Shield, Filter, ChevronDown
 } from 'lucide-react';
 
 export default function TrashPage() {
@@ -24,6 +24,7 @@ export default function TrashPage() {
     if (item.type === 'Department') itemName = (item.data as any).name;
     if (item.type === 'Request') itemName = (item.data as any).user + ' ' + (item.data as any).type;
     if (item.type === 'Role') itemName = (item.data as any).name; // For Roles
+    if (item.type === 'Event') itemName = (item.data as any).title; // For Events
 
     const matchesSearch = itemName.toLowerCase().includes(searchQuery.toLowerCase());
     
@@ -37,18 +38,18 @@ export default function TrashPage() {
       case 'Department': return <Building size={18} className="text-orange-500" />;
       case 'Request': return <FileText size={18} className="text-purple-500" />;
       case 'Role': return <Shield size={18} className="text-emerald-500" />;
+      case 'Event': return <CalendarIcon size={18} className="text-pink-500" />;
       default: return <Trash2 size={18} className="text-gray-500" />;
     }
   };
 
   // Helper to get description
   const getDescription = (item: any) => {
-    // Show Department instead of Role for Users
     if (item.type === 'User') return `${(item.data as any).department} - ${(item.data as any).email}`;
-    
     if (item.type === 'Department') return (item.data as any).description || 'No description';
     if (item.type === 'Request') return `${(item.data as any).type} on ${(item.data as any).leaveDate}`;
     if (item.type === 'Role') return (item.data as any).description || 'No description';
+    if (item.type === 'Event') return `${(item.data as any).date} - ${(item.data as any).type}`;
     return '';
   };
 
@@ -93,17 +94,21 @@ export default function TrashPage() {
           </div>
 
           <div className="flex items-center gap-3">
-             <select 
-               value={filterType}
-               onChange={(e) => setFilterType(e.target.value)}
-               className="px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium focus:outline-none cursor-pointer"
-             >
-               <option value="All">All Types</option>
-               <option value="User">Users</option>
-               <option value="Department">Departments</option>
-               <option value="Request">Requests</option>
-               <option value="Role">Roles</option>
-             </select>
+             <div className="relative group">
+                <select 
+                   value={filterType}
+                   onChange={(e) => setFilterType(e.target.value)}
+                   className="appearance-none pl-4 pr-10 py-3 bg-white border border-gray-200 rounded-xl text-sm font-semibold text-gray-600 focus:outline-none cursor-pointer hover:border-gray-300 shadow-sm min-w-[160px]"
+                >
+                   <option value="All">All Types</option>
+                   <option value="User">Users</option>
+                   <option value="Department">Departments</option>
+                   <option value="Request">Requests</option>
+                   <option value="Role">Roles</option>
+                   <option value="Event">Events</option>
+                </select>
+                <Filter className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={14} />
+             </div>
           </div>
         </div>
 
@@ -128,6 +133,7 @@ export default function TrashPage() {
                              {item.type === 'User' ? (item.data as any).name : 
                               item.type === 'Department' ? (item.data as any).name : 
                               item.type === 'Role' ? (item.data as any).name : 
+                              item.type === 'Event' ? (item.data as any).title :
                               (item.data as any).user}
                            </h3>
                            <span className="text-[10px] px-2 py-0.5 bg-gray-100 text-gray-500 rounded-full font-bold uppercase tracking-wider">{item.type}</span>
@@ -180,3 +186,6 @@ export default function TrashPage() {
     </div>
   );
 }
+
+// Icon Helper
+import { Calendar as CalendarIcon } from 'lucide-react';

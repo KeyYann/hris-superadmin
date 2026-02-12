@@ -1,14 +1,14 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { useNotifications } from '@/context/NotificationContext';
 import { 
   Search, Plus, Pencil, Trash2, Shield, 
-  X, AlertTriangle, UserCog, Mail, Lock, User
+  X, AlertTriangle, UserCog, Mail, Lock, User, ChevronDown, Check, AlertCircle
 } from 'lucide-react';
 
 export default function ManageAdminPage() {
-  const { users, addUser, updateUser, deleteUser, roles } = useNotifications();
+  const { users, updateUser, deleteUser, roles } = useNotifications();
   const [searchQuery, setSearchQuery] = useState('');
   
   // States
@@ -16,17 +16,29 @@ export default function ManageAdminPage() {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [currentAdmin, setCurrentAdmin] = useState<any>(null); 
 
-  // Form State - Default role to the first admin role available
-  const initialFormState = { name: '', email: '', role: '', password: '', confirmPassword: '' };
-  const [formData, setFormData] = useState(initialFormState);
+  // Custom Dropdown State
+  const [isUserDropdownOpen, setIsUserDropdownOpen] = useState(false);
+  const [userSearchTerm, setUserSearchTerm] = useState('');
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // --- 1. FILTER ROLES: Only get roles that contain "Admin" ---
-  // This filters the context roles to find "Admin Engineering", "Super Admin", etc.
+  // Form & Error State
+  const initialFormState = { id: '', name: '', email: '', role: '', password: '', confirmPassword: '' };
+  const [formData, setFormData] = useState(initialFormState);
+  const [errors, setErrors] = useState<{ role?: string; password?: string; user?: string }>({});
+
+  // --- 1. FILTER ROLES ---
   const adminRoleObjects = roles.filter(r => r.name.includes('Admin'));
   const adminRoleNames = adminRoleObjects.map(r => r.name);
 
-  // --- 2. FILTER USERS: Only show users who have an Admin role ---
+  // --- 2. FILTER USERS ---
   const adminUsers = users.filter(u => adminRoleNames.includes(u.role));
+  const eligibleEmployees = users.filter(u => !adminRoleNames.includes(u.role));
+
+  // Filter for the custom dropdown
+  const filteredEmployees = eligibleEmployees.filter(u => 
+    u.name.toLowerCase().includes(userSearchTerm.toLowerCase()) || 
+    u.email.toLowerCase().includes(userSearchTerm.toLowerCase())
+  );
 
   const filteredAdmins = adminUsers.filter(user => 
     user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -35,25 +47,40 @@ export default function ManageAdminPage() {
   );
 
   // --- ACTIONS ---
+  
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsUserDropdownOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
   const openAddModal = () => {
     setCurrentAdmin(null);
-    // Set default role to the first available admin role or empty if none
     setFormData({ 
         ...initialFormState, 
         role: adminRoleObjects.length > 0 ? adminRoleObjects[0].name : '' 
     });
+    setErrors({});
+    setUserSearchTerm('');
     setIsModalOpen(true);
   };
 
   const openEditModal = (admin: any) => {
     setCurrentAdmin(admin);
     setFormData({ 
+        id: admin.id,
         name: admin.name, 
         email: admin.email, 
         role: admin.role, 
         password: '', 
         confirmPassword: '' 
     });
+    setErrors({});
     setIsModalOpen(true);
   };
 
@@ -62,23 +89,53 @@ export default function ManageAdminPage() {
     setIsDeleteModalOpen(true);
   };
 
+  const handleUserSelect = (user: any) => {
+    setFormData(prev => ({
+        ...prev,
+        id: user.id,
+        name: user.name,
+        email: user.email
+    }));
+    setErrors(prev => ({ ...prev, user: undefined }));
+    setIsUserDropdownOpen(false);
+  };
+
   const handleSave = () => {
-    // Basic Validation
-    if (formData.password && formData.password !== formData.confirmPassword) {
-      alert("Passwords do not match!");
-      return;
+    setErrors({});
+    const newErrors: any = {};
+
+    // 1. User Selection Validation (Add Mode)
+    if (!currentAdmin && !formData.id) {
+        newErrors.user = "Please select an employee to promote.";
     }
+
+    // 2. Role Validation
     if (!formData.role) {
-        alert("Please select an admin role.");
+        newErrors.role = "Please select an admin role.";
+    }
+
+    // 3. Password Validation
+    if (formData.password && formData.password !== formData.confirmPassword) {
+      newErrors.password = "Passwords do not match!";
+    }
+
+    if (Object.keys(newErrors).length > 0) {
+        setErrors(newErrors);
         return;
     }
 
-    if (currentAdmin) {
-      updateUser({ ...currentAdmin, name: formData.name, email: formData.email, role: formData.role });
-    } else {
-      // Default department to 'Management' for new admins
-      addUser({ name: formData.name, email: formData.email, role: formData.role, department: 'Management' });
+    // UPDATE LOGIC
+    const originalUser = users.find(u => u.id === formData.id);
+    
+    if (originalUser) {
+        updateUser({ 
+            ...originalUser, 
+            name: formData.name, 
+            role: formData.role 
+            // We do not change email here
+        });
     }
+
     setIsModalOpen(false);
   };
 
@@ -103,7 +160,7 @@ export default function ManageAdminPage() {
           className="flex items-center justify-center gap-2 px-6 py-3 bg-brand text-white text-sm font-bold rounded-xl hover:bg-brand-light transition-all shadow-lg shadow-orange-100 hover:-translate-y-0.5 active:scale-95 whitespace-nowrap cursor-pointer"
         >
           <Plus size={18} /> 
-          <span>New Admin</span>
+          <span>Add Admin</span>
         </button>
       </div>
 
@@ -191,7 +248,7 @@ export default function ManageAdminPage() {
       {/* --- ADD / EDIT ADMIN MODAL --- */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden scale-100 animate-in zoom-in-95 duration-200">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden scale-100 animate-in zoom-in-95 duration-200" style={{ minHeight: '400px' }}>
             <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
               <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
                 <Shield size={18} className="text-brand opacity-80" />
@@ -200,48 +257,146 @@ export default function ManageAdminPage() {
               <button onClick={() => setIsModalOpen(false)} className="p-1 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-full transition-colors"><X size={20}/></button>
             </div>
             
-            <div className="p-6 space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Username / Name</label>
-                    <div className="relative">
-                        <User className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-                        <input type="text" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="w-full pl-9 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand/20 focus:bg-white transition-all" placeholder="John Doe" />
-                    </div>
-                </div>
-                <div>
-                    <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Admin Role</label>
-                    {/* Updated Select to use adminRoleObjects from context */}
-                    <select value={formData.role} onChange={e => setFormData({...formData, role: e.target.value})} className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand/20 focus:bg-white transition-all cursor-pointer">
-                        {adminRoleObjects.map(r => <option key={r.id} value={r.name}>{r.name}</option>)}
-                    </select>
-                </div>
-              </div>
+            <div className="p-6 space-y-5">
+              
+              {/* --- SEARCHABLE USER DROPDOWN (ADD MODE) --- */}
+              {!currentAdmin ? (
+                  <div className="relative" ref={dropdownRef}>
+                      <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Select Employee to Promote</label>
+                      
+                      {/* Trigger Button */}
+                      <div 
+                        onClick={() => setIsUserDropdownOpen(!isUserDropdownOpen)}
+                        className={`w-full px-4 py-3 bg-gray-50 border rounded-xl flex items-center justify-between cursor-pointer hover:bg-white hover:border-brand/30 transition-all ${isUserDropdownOpen ? 'ring-2 ring-brand/20 border-brand' : 'border-gray-200'}`}
+                      >
+                        {formData.id ? (
+                            <div className="flex items-center gap-2">
+                                <div className="w-6 h-6 rounded-full bg-brand text-white flex items-center justify-center text-xs font-bold">
+                                    {users.find(u => u.id === formData.id)?.avatar}
+                                </div>
+                                <div className="flex flex-col">
+                                    <span className="text-sm font-bold text-gray-800 leading-none">{formData.name}</span>
+                                    <span className="text-[10px] text-gray-500 leading-none mt-0.5">{formData.email}</span>
+                                </div>
+                            </div>
+                        ) : (
+                            <span className="text-sm text-gray-400">Search for an employee...</span>
+                        )}
+                        <ChevronDown size={16} className={`text-gray-400 transition-transform ${isUserDropdownOpen ? 'rotate-180' : ''}`} />
+                      </div>
 
+                      {/* Dropdown Menu */}
+                      {isUserDropdownOpen && (
+                        <div className="absolute top-full left-0 w-full mt-2 bg-white border border-gray-100 rounded-xl shadow-xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-2">
+                            {/* Search Bar inside dropdown */}
+                            <div className="p-2 border-b border-gray-50 bg-gray-50/50">
+                                <div className="relative">
+                                    <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                                    <input 
+                                        autoFocus
+                                        type="text"
+                                        placeholder="Filter by name..."
+                                        className="w-full pl-8 pr-3 py-2 bg-white border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-brand"
+                                        value={userSearchTerm}
+                                        onChange={(e) => setUserSearchTerm(e.target.value)}
+                                    />
+                                </div>
+                            </div>
+                            
+                            {/* List */}
+                            <div className="max-h-48 overflow-y-auto">
+                                {filteredEmployees.length > 0 ? (
+                                    filteredEmployees.map(u => (
+                                        <div 
+                                            key={u.id} 
+                                            onClick={() => handleUserSelect(u)}
+                                            className="px-4 py-3 hover:bg-orange-50 cursor-pointer flex items-center gap-3 transition-colors border-b border-gray-50 last:border-0 group"
+                                        >
+                                            <div className="w-8 h-8 rounded-full bg-gray-100 text-gray-500 flex items-center justify-center text-xs font-bold group-hover:bg-white group-hover:text-brand transition-colors">
+                                                {u.avatar}
+                                            </div>
+                                            <div>
+                                                <p className="text-sm font-bold text-gray-800 group-hover:text-brand">{u.name}</p>
+                                                <p className="text-xs text-gray-400">{u.email}</p>
+                                            </div>
+                                            {formData.id === u.id && <Check size={16} className="ml-auto text-brand" />}
+                                        </div>
+                                    ))
+                                ) : (
+                                    <div className="p-4 text-center text-xs text-gray-400">No employees found.</div>
+                                )}
+                            </div>
+                        </div>
+                      )}
+                      {errors.user && <div className="flex items-center gap-1.5 mt-2 text-red-500 text-xs font-medium"><AlertCircle size={12}/>{errors.user}</div>}
+                  </div>
+              ) : (
+                  // EDIT MODE: JUST SHOW NAME (READ ONLY)
+                  <div>
+                      <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Admin Name</label>
+                      <div className="w-full px-4 py-3 bg-gray-100 border border-gray-200 rounded-xl text-sm font-bold text-gray-600 cursor-not-allowed">
+                          {formData.name} <span className="font-normal text-gray-400 ml-1">({formData.email})</span>
+                      </div>
+                  </div>
+              )}
+
+              {/* --- ROLE SELECTION --- */}
               <div>
-                <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Email Address</label>
-                <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-                    <input type="email" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} className="w-full pl-9 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand/20 focus:bg-white transition-all" placeholder="admin@company.com" />
-                </div>
+                  <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Assign Role</label>
+                  <div className="relative">
+                      <select 
+                          value={formData.role} 
+                          onChange={e => setFormData({...formData, role: e.target.value})} 
+                          className={`w-full pl-4 pr-10 py-3 bg-white border rounded-xl text-sm font-medium focus:outline-none focus:ring-2 transition-all cursor-pointer appearance-none ${errors.role ? 'border-red-300 focus:ring-red-200' : 'border-gray-200 focus:ring-brand/20'}`}
+                      >
+                          {adminRoleObjects.map(r => <option key={r.id} value={r.name}>{r.name}</option>)}
+                      </select>
+                      <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={16} />
+                  </div>
+                  {errors.role && <p className="text-red-500 text-xs mt-1">{errors.role}</p>}
               </div>
 
+              {/* --- PASSWORD FIELDS (Optional for Edit) --- */}
               {!currentAdmin && (
                   <div className="grid grid-cols-2 gap-4 pt-2 border-t border-gray-50">
                     <div>
                         <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Password</label>
                         <div className="relative">
                             <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-                            <input type="password" value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} className="w-full pl-9 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand/20 focus:bg-white transition-all" placeholder="••••••••" />
+                            <input 
+                                type="password" 
+                                value={formData.password} 
+                                onChange={e => setFormData({...formData, password: e.target.value})} 
+                                className={`w-full pl-9 pr-4 py-2.5 bg-gray-50 border rounded-xl text-sm focus:outline-none focus:ring-2 transition-all ${
+                                    errors.password 
+                                    ? 'border-red-300 focus:ring-red-200 focus:border-red-400' 
+                                    : 'border-gray-200 focus:ring-brand/20 focus:bg-white'
+                                }`}
+                                placeholder="••••••••" 
+                            />
                         </div>
                     </div>
                     <div>
                         <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Confirm Password</label>
                         <div className="relative">
                             <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
-                            <input type="password" value={formData.confirmPassword} onChange={e => setFormData({...formData, confirmPassword: e.target.value})} className="w-full pl-9 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-brand/20 focus:bg-white transition-all" placeholder="••••••••" />
+                            <input 
+                                type="password" 
+                                value={formData.confirmPassword} 
+                                onChange={e => {
+                                    setFormData({...formData, confirmPassword: e.target.value});
+                                    setErrors({...errors, password: undefined});
+                                }} 
+                                className={`w-full pl-9 pr-4 py-2.5 bg-gray-50 border rounded-xl text-sm focus:outline-none focus:ring-2 transition-all ${
+                                    errors.password 
+                                    ? 'border-red-300 focus:ring-red-200 focus:border-red-400' 
+                                    : 'border-gray-200 focus:ring-brand/20 focus:bg-white'
+                                }`}
+                                placeholder="••••••••" 
+                            />
                         </div>
                     </div>
+                    {errors.password && <p className="col-span-2 text-red-500 text-xs text-center">{errors.password}</p>}
                   </div>
               )}
             </div>

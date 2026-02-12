@@ -42,23 +42,32 @@ export interface TimeOffRequest {
   message: string;
 }
 
+// New Interface for Global Events
+export interface CalendarEvent {
+  id: string;
+  title: string;
+  date: string; // YYYY-MM-DD
+  type: 'company' | 'holiday' | 'birthday' | 'deadline' | 'festival' | 'personal';
+  description: string;
+}
+
 export interface Role {
     id: number;
     name: string;
-    users: number; // Keeping for compatibility, though not in screenshot
+    users: number;
     description: string;
 }
 
 export interface TrashItem {
   trashId: string;
   originalId: string | number;
-  type: 'User' | 'Department' | 'Request' | 'Role';
-  data: User | Department | TimeOffRequest | Role;
+  type: 'User' | 'Department' | 'Request' | 'Role' | 'Event';
+  data: User | Department | TimeOffRequest | Role | CalendarEvent;
   deletedAt: string;
   deletedBy: string; 
 }
 
-// --- 1. ROLES (UPDATED FROM SCREENSHOT) ---
+// --- 1. ROLES ---
 const INITIAL_ROLES: Role[] = [
   { id: 1, name: 'Admin Engineering', users: 2, description: 'This admin handles all engineering department leaves.' },
   { id: 2, name: 'Admin HR', users: 3, description: 'This role handles all HR related transaction including managing all users, time offs, employee time off credits, upcoming events.' },
@@ -71,7 +80,6 @@ const INITIAL_ROLES: Role[] = [
   { id: 9, name: 'Admin Timesheet', users: 1, description: '' },
   { id: 10, name: 'Admin NetSuite', users: 1, description: '' },
   { id: 11, name: 'Admin New Cluster', users: 0, description: '' },
-  // Keeping standard user roles for completeness if needed elsewhere
   { id: 12, name: 'Developer', users: 10, description: 'Standard engineering staff.' },
   { id: 13, name: 'Designer', users: 5, description: 'Standard design staff.' },
   { id: 14, name: 'QA', users: 4, description: 'Quality assurance staff.' },
@@ -87,14 +95,11 @@ const INITIAL_DEPARTMENTS: Department[] = [
   { id: 6, name: 'Sales', members: 3, status: 'Active', description: 'Client acquisition and revenue.' },
 ];
 
-// --- 3. USERS (Added @abbeconsult.com) ---
+// --- 3. USERS ---
 const INITIAL_USERS: User[] = [
-  // ABBE CONSULT Users
   { id: 'admin1', name: 'Sarah Smith', role: 'Super Admin', email: 'sarah.s@abbeconsult.com', department: 'Operations', status: 'Active', avatar: 'SS', employmentStatus: 'Regular Employee' },
   { id: 'admin3', name: 'Victoria Hand', role: 'Admin', email: 'victoria.h@abbeconsult.com', department: 'Operations', status: 'Active', avatar: 'VH', employmentStatus: 'Regular Employee' },
   { id: 'u4', name: 'Emily White', role: 'Admin HR', email: 'emily.w@abbeconsult.com', department: 'Human Resources', status: 'Active', avatar: 'EW', employmentStatus: 'Regular Employee' },
-  
-  // ABBE Users
   { id: 'admin2', name: 'Alexander Pierce', role: 'Super Admin', email: 'alex.p@abbe.com', department: 'Operations', status: 'Active', avatar: 'AP', employmentStatus: 'Regular Employee' },
   { id: 'admin4', name: 'Phil Coulson', role: 'Admin HR', email: 'phil.c@abbe.com', department: 'Human Resources', status: 'Active', avatar: 'PC', employmentStatus: 'Regular Employee' },
   { id: 'admin5', name: 'Nick Fury', role: 'Admin Managers', email: 'nick.f@abbe.com', department: 'Operations', status: 'Active', avatar: 'NF', employmentStatus: 'Regular Employee' },
@@ -106,12 +111,8 @@ const INITIAL_USERS: User[] = [
   { id: 'u7', name: 'Rommel Manalo', role: 'Developer', email: 'rommel.m@abbe.com', department: 'Engineering', status: 'Active', avatar: 'RM', employmentStatus: 'Project-based Employee' },
   { id: 'u8', name: 'Alice Chen', role: 'Admin Managers', email: 'alice.c@abbe.com', department: 'Operations', status: 'Active', avatar: 'AC', employmentStatus: 'Regular Employee' },
   { id: 'u9', name: 'Robert Taylor', role: 'Developer', email: 'robert.t@abbe.com', department: 'Engineering', status: 'Active', avatar: 'RT', employmentStatus: 'Regular Employee' },
-  
-  // BEQUIK Users
   { id: 'u10', name: 'Maria Garcia', role: 'Designer', email: 'maria.g@bequik.com', department: 'Design', status: 'On Leave', avatar: 'MG', employmentStatus: 'Seasonal Employee' },
   { id: 'u11', name: 'James Wilson', role: 'QA', email: 'james.w@bequik.com', department: 'Engineering', status: 'Active', avatar: 'JW', employmentStatus: 'Probationary Employee' },
-  
-  // More ABBE Users
   { id: 'u12', name: 'Patricia Miller', role: 'Admin HR', email: 'patricia.m@abbe.com', department: 'Human Resources', status: 'Active', avatar: 'PM', employmentStatus: 'Regular Employee' },
   { id: 'u13', name: 'Michael Anderson', role: 'Developer', email: 'michael.a@abbe.com', department: 'Engineering', status: 'Active', avatar: 'MA', employmentStatus: 'Regular Employee' },
   { id: 'u14', name: 'Jennifer Thomas', role: 'Admin Managers', email: 'jennifer.t@abbe.com', department: 'Operations', status: 'Active', avatar: 'JT', employmentStatus: 'Regular Employee' },
@@ -129,6 +130,15 @@ const INITIAL_TIME_OFF_REQUESTS: TimeOffRequest[] = [
   { id: '369', user: 'Emily White', avatar: 'EW', role: 'Admin HR', submitted: '2026-02-05', leaveDate: '2026-02-08', type: 'Sick Leave', status: 'Approved', duration: '10 Day', isHalfDay: false, message: 'Migraine.' },
   { id: '370', user: 'Laurence Rey', avatar: 'LR', role: 'Designer', submitted: '2026-02-05', leaveDate: '2026-02-06', type: 'Vacation Leave', status: 'Pending', duration: '2 Days', isHalfDay: false, message: 'Attending a conference.' },
   { id: '371', user: 'Rommel Manalo', avatar: 'RM', role: 'Developer', submitted: '2026-01-07', leaveDate: '2026-01-25', type: 'Vacation Leave', status: 'Approved', duration: '0.5 Days', isHalfDay: true, message: 'Hiking trip.' },
+];
+
+// --- 5. NEW: GLOBAL CALENDAR EVENTS (5 MOCK EVENTS from Feb 12, 2026 onwards) ---
+const INITIAL_CALENDAR_EVENTS: CalendarEvent[] = [
+  { id: 'evt-1', title: 'Q1 Strategic Planning', date: '2026-02-12', type: 'company', description: 'All hands meeting for Q1 goals.' },
+  { id: 'evt-2', title: 'Valentine\'s Day Lunch', date: '2026-02-14', type: 'company', description: 'Office celebration.' },
+  { id: 'evt-3', title: 'Project Beta Deadline', date: '2026-02-18', type: 'deadline', description: 'Final submission for Beta phase.' },
+  { id: 'evt-4', title: 'New Cluster Training', date: '2026-02-23', type: 'company', description: 'Training for the new admin cluster.' },
+  { id: 'evt-5', title: 'Monthly Town Hall', date: '2026-02-27', type: 'company', description: 'Monthly updates and awarding.' },
 ];
 
 const INITIAL_NOTIFICATIONS = [
@@ -165,6 +175,11 @@ interface NotificationContextType {
   updateTimeOffStatus: (id: string, status: string) => void;
   deleteTimeOffRequest: (id: string) => void;
   
+  // Calendar Events
+  calendarEvents: CalendarEvent[];
+  addCalendarEvent: (event: Partial<CalendarEvent>) => void;
+  deleteCalendarEvent: (id: string) => void;
+
   // Trash
   trash: TrashItem[];
   restoreItem: (trashId: string) => void;
@@ -195,6 +210,7 @@ const NotificationContext = createContext<NotificationContextType | undefined>(u
 export function NotificationProvider({ children }: { children: ReactNode }) {
   const [notifications, setNotifications] = useState(INITIAL_NOTIFICATIONS);
   const [timeOffRequests, setTimeOffRequests] = useState<TimeOffRequest[]>(INITIAL_TIME_OFF_REQUESTS);
+  const [calendarEvents, setCalendarEvents] = useState<CalendarEvent[]>(INITIAL_CALENDAR_EVENTS);
   const [users, setUsers] = useState<User[]>(INITIAL_USERS);
   const [roles, setRoles] = useState<Role[]>(INITIAL_ROLES);
   const [departments, setDepartments] = useState<Department[]>(INITIAL_DEPARTMENTS);
@@ -212,7 +228,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   }, []);
 
   // --- TRASH LOGIC ---
-  const addToTrash = (type: 'User' | 'Department' | 'Request' | 'Role', originalId: string | number, data: any) => {
+  const addToTrash = (type: 'User' | 'Department' | 'Request' | 'Role' | 'Event', originalId: string | number, data: any) => {
     const newItem: TrashItem = {
         trashId: `trash_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         originalId,
@@ -236,6 +252,8 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         setTimeOffRequests(prev => [...prev, item.data as TimeOffRequest]);
     } else if (item.type === 'Role') {
         setRoles(prev => [...prev, item.data as Role]);
+    } else if (item.type === 'Event') {
+        setCalendarEvents(prev => [...prev, item.data as CalendarEvent]);
     }
 
     setTrash(prev => prev.filter(t => t.trashId !== trashId));
@@ -301,6 +319,26 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
         setTimeOffRequests(prev => prev.filter(r => r.id !== id));
     }
   }, [timeOffRequests]);
+
+  // CALENDAR EVENTS LOGIC
+  const addCalendarEvent = useCallback((event: Partial<CalendarEvent>) => {
+    const newEvent: CalendarEvent = {
+        id: `evt-${Date.now()}`,
+        title: event.title || 'New Event',
+        date: event.date || new Date().toISOString().split('T')[0],
+        type: event.type || 'company',
+        description: event.description || ''
+    };
+    setCalendarEvents(prev => [...prev, newEvent]);
+  }, []);
+
+  const deleteCalendarEvent = useCallback((id: string) => {
+    const evt = calendarEvents.find(e => e.id === id);
+    if (evt) {
+        addToTrash('Event', id, evt);
+        setCalendarEvents(prev => prev.filter(e => e.id !== id));
+    }
+  }, [calendarEvents]);
 
   const addUser = useCallback((newUser: Partial<User>) => {
     const id = `u${Date.now()}`;
@@ -388,6 +426,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   const value = useMemo(() => ({
     notifications, unreadCount, markAllAsRead,
     timeOffRequests, pendingTimeOffCount, addTimeOffRequest, updateTimeOffStatus, deleteTimeOffRequest,
+    calendarEvents, addCalendarEvent, deleteCalendarEvent,
     trash, restoreItem, permanentlyDeleteItem,
     users, totalUsers, addUser, updateUser, deleteUser,
     roles, addRole, updateRole, deleteRole,
@@ -396,6 +435,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   }), [
     notifications, unreadCount, markAllAsRead, 
     timeOffRequests, pendingTimeOffCount, addTimeOffRequest, updateTimeOffStatus, deleteTimeOffRequest, 
+    calendarEvents, addCalendarEvent, deleteCalendarEvent,
     trash, restoreItem, permanentlyDeleteItem,
     users, totalUsers, addUser, updateUser, deleteUser,
     roles, addRole, updateRole, deleteRole,
