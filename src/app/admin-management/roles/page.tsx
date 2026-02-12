@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useNotifications } from '@/context/NotificationContext';
 import { 
   Search, Plus, Pencil, Trash2, Shield, 
-  Users, X, AlertTriangle, Lock
+  X, AlertTriangle, Lock
 } from 'lucide-react';
 
 export default function ManageRolesPage() {
@@ -126,8 +126,7 @@ export default function ManageRolesPage() {
             <thead>
               <tr className="bg-gray-50 border-b border-gray-100 text-xs uppercase tracking-wider text-gray-500 font-bold">
                 <th className="p-4 pl-6">Role Name</th>
-                <th className="p-4">Description</th>
-                <th className="p-4">Active Users</th>
+                <th className="p-4 w-1/2">Description</th>
                 <th className="p-4 text-right pr-6">Action</th>
               </tr>
             </thead>
@@ -143,13 +142,7 @@ export default function ManageRolesPage() {
                     </div>
                   </td>
                   <td className="p-4 align-middle">
-                    <p className="text-sm text-gray-500 leading-snug max-w-md">{role.description}</p>
-                  </td>
-                  <td className="p-4 align-middle">
-                    <div className="flex items-center gap-1.5 text-sm text-gray-600">
-                      <Users size={16} className="text-gray-400" />
-                      <span className="font-semibold">{role.users}</span>
-                    </div>
+                    <p className="text-sm text-gray-500 leading-snug">{role.description}</p>
                   </td>
                   <td className="p-4 text-right pr-6 align-middle">
                     <div className="flex items-center justify-end gap-2">
@@ -173,7 +166,7 @@ export default function ManageRolesPage() {
               ))}
               {filteredRoles.length === 0 && (
                 <tr>
-                  <td colSpan={4} className="p-12 text-center text-gray-400">
+                  <td colSpan={3} className="p-12 text-center text-gray-400">
                     <Shield size={48} className="mx-auto mb-3 opacity-20"/>
                     <p>No roles found.</p>
                   </td>
