@@ -113,16 +113,6 @@ export default function Navbar({ isExpanded, setIsExpanded, onCloseMobile }: Nav
           )}
 
           {isSuperAdmin && (
-            <NavItem 
-              href="/file-request" 
-              icon={<FileText size={18}/>} 
-              label="File Request" 
-              isExpanded={isExpanded} 
-              isActive={pathname.startsWith('/file-request')}
-            />
-          )}
-
-          {isSuperAdmin && (
             <NavDropdown 
               icon={<CalendarDays size={18} />} 
               label="Time Off" 
