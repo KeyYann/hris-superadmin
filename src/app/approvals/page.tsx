@@ -19,6 +19,8 @@ export default function ApprovalsPage() {
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [viewingRequest, setViewingRequest] = useState<any>(null);
   const [sortOrder, setSortOrder] = useState('Newest');
+  const [currentPage, setCurrentPage] = useState(1);
+  const ITEMS_PER_PAGE = 6;
 
   // Mock data for overtime and official business (you can expand this later)
   const overtimeRequests = [
@@ -62,7 +64,17 @@ export default function ApprovalsPage() {
     return 0;
   });
 
+  // Pagination
+  const totalPages = Math.ceil(filteredRequests.length / ITEMS_PER_PAGE);
+  const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+  const paginatedRequests = filteredRequests.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+
   const pendingCount = allRequests.filter(r => r.status === 'Pending').length;
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, selectedCategory, selectedStatus, sortOrder]);
 
   const handleApprove = (id: string, category: string) => {
     if (category === 'leave') {
@@ -270,7 +282,7 @@ export default function ApprovalsPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {filteredRequests.map((request) => (
+              {paginatedRequests.map((request) => (
                 <tr key={request.id} className="hover:bg-gray-50/50 transition-colors group">
                   <td className="p-4 pl-6">
                     <div className="flex items-center gap-3">
@@ -406,7 +418,7 @@ export default function ApprovalsPage() {
                   </td>
                 </tr>
               ))}
-              {filteredRequests.length === 0 && (
+              {paginatedRequests.length === 0 && (
                 <tr>
                   <td colSpan={6} className="p-12 text-center text-gray-400">
                     <FileText size={48} className="mx-auto mb-3 opacity-20"/>
@@ -417,6 +429,35 @@ export default function ApprovalsPage() {
             </tbody>
           </table>
         </div>
+
+        {/* PAGINATION */}
+        {filteredRequests.length > 0 && (
+          <div className="p-4 border-t border-gray-100 flex justify-between items-center bg-gray-50/30 shrink-0">
+            <p className="text-xs text-gray-500">
+              Showing <span className="font-bold">{startIndex + 1}</span> to <span className="font-bold">{Math.min(startIndex + ITEMS_PER_PAGE, filteredRequests.length)}</span> of <span className="font-bold">{filteredRequests.length}</span> entries
+            </p>
+            <div className="flex gap-2">
+              <button 
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                className="px-3 py-1 text-xs font-semibold text-gray-500 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                Prev
+              </button>
+              <div className="flex items-center gap-1 px-2">
+                <span className="text-xs font-bold text-gray-700">Page {currentPage}</span>
+                <span className="text-xs text-gray-400">/ {totalPages || 1}</span>
+              </div>
+              <button 
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages || totalPages === 0}
+                className="px-3 py-1 text-xs font-semibold text-gray-500 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* VIEW DETAILS MODAL */}
