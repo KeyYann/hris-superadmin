@@ -284,20 +284,9 @@ export default function ApprovalsPage() {
                               ? `${(request as any).leaveDate} to ${(request as any).endDate}`
                               : (request as any).leaveDate}
                           </p>
-                          <div className="flex items-center gap-2 mt-1">
-                            <p className="text-xs text-gray-600 font-semibold">
-                              {(request as any).isHalfDay ? 'Half Day' : (request as any).duration}
-                            </p>
-                            {(request as any).isHalfDay && (request as any).halfDayPeriod && (
-                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                                (request as any).halfDayPeriod === 'morning' 
-                                  ? 'bg-amber-50 text-amber-600 border border-amber-200' 
-                                  : 'bg-indigo-50 text-indigo-600 border border-indigo-200'
-                              }`}>
-                                {(request as any).halfDayPeriod === 'morning' ? '8AM-12PM' : '1PM-5PM'}
-                              </span>
-                            )}
-                          </div>
+                          <p className="text-xs text-gray-600 font-semibold mt-1">
+                            {(request as any).isHalfDay ? 'Half Day' : (request as any).duration}
+                          </p>
                         </>
                       )}
                       {request.category === 'overtime' && (
@@ -461,18 +450,6 @@ export default function ApprovalsPage() {
                         <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Duration</p>
                         <p className="text-lg font-bold text-gray-800">{viewingRequest.duration}</p>
                       </div>
-                      {viewingRequest.isHalfDay && viewingRequest.halfDayPeriod && (
-                        <div className="bg-gray-50 rounded-2xl p-4 border border-gray-100">
-                          <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Half Day Period</p>
-                          <span className={`inline-flex text-sm font-bold px-3 py-1.5 rounded-lg ${
-                            viewingRequest.halfDayPeriod === 'morning' 
-                              ? 'bg-amber-50 text-amber-600 border border-amber-200' 
-                              : 'bg-indigo-50 text-indigo-600 border border-indigo-200'
-                          }`}>
-                            {viewingRequest.halfDayPeriod === 'morning' ? 'Morning (8AM - 12PM)' : 'Afternoon (1PM - 5PM)'}
-                          </span>
-                        </div>
-                      )}
                     </>
                   )}
 
