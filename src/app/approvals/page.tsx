@@ -141,7 +141,7 @@ export default function ApprovalsPage() {
             <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center">
               <Calendar className="text-blue-600" size={20} />
             </div>
-            <span className="text-2xl font-bold text-gray-800">{timeOffRequests.length}</span>
+            <span className="text-2xl font-bold text-gray-800">{allRequests.filter(r => r.category === 'leave').length}</span>
           </div>
           <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Leave</p>
         </div>
@@ -156,7 +156,7 @@ export default function ApprovalsPage() {
             <div className="w-10 h-10 rounded-xl bg-orange-50 flex items-center justify-center">
               <Clock className="text-orange-600" size={20} />
             </div>
-            <span className="text-2xl font-bold text-gray-800">{overtimeRequests.length}</span>
+            <span className="text-2xl font-bold text-gray-800">{allRequests.filter(r => r.category === 'overtime').length}</span>
           </div>
           <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Overtime</p>
         </div>
@@ -171,7 +171,7 @@ export default function ApprovalsPage() {
             <div className="w-10 h-10 rounded-xl bg-green-50 flex items-center justify-center">
               <Briefcase className="text-green-600" size={20} />
             </div>
-            <span className="text-2xl font-bold text-gray-800">{officialBusinessRequests.length}</span>
+            <span className="text-2xl font-bold text-gray-800">{allRequests.filter(r => r.category === 'official-business').length}</span>
           </div>
           <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Official Business</p>
         </div>
@@ -186,7 +186,7 @@ export default function ApprovalsPage() {
             <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center">
               <RefreshCw className="text-indigo-600" size={20} />
             </div>
-            <span className="text-2xl font-bold text-gray-800">{offsetRequests.length}</span>
+            <span className="text-2xl font-bold text-gray-800">{allRequests.filter(r => r.category === 'offset').length}</span>
           </div>
           <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Offset</p>
         </div>
