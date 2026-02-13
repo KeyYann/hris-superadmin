@@ -1,6 +1,7 @@
-import { redirect } from 'next/navigation';
+import type { NextConfig } from "next";
 
-export default function Home() {
-  // This redirects users from "/" to "/login" automatically
-  redirect('/login'); 
-}
+const nextConfig: NextConfig = {
+  /* config options here */
+};
+
+export default nextConfig;
