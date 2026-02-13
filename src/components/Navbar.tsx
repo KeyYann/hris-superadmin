@@ -112,16 +112,6 @@ export default function Navbar({ isExpanded, setIsExpanded, onCloseMobile }: Nav
             />
           )}
 
-          {isAdmin && !isSuperAdmin && (
-            <NavItem 
-              href="/offset" 
-              icon={<RefreshCw size={18}/>} 
-              label="Offset" 
-              isExpanded={isExpanded} 
-              isActive={pathname.startsWith('/offset')}
-            />
-          )}
-
           {isSuperAdmin && (
             <NavDropdown 
               icon={<CalendarDays size={18} />} 

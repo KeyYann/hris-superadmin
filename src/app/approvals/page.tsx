@@ -4,10 +4,10 @@ import { useState, useEffect } from 'react';
 import { useNotifications } from '@/context/NotificationContext';
 import { 
   Search, Filter, CheckCircle, XCircle, Clock, 
-  Calendar, Briefcase, FileText, ChevronDown, X, Eye, ArrowUpDown
+  Calendar, Briefcase, FileText, ChevronDown, X, Eye, ArrowUpDown, RefreshCw
 } from 'lucide-react';
 
-type CategoryType = 'all' | 'leave' | 'overtime' | 'official-business';
+type CategoryType = 'all' | 'leave' | 'overtime' | 'official-business' | 'offset';
 type StatusType = 'all' | 'Pending' | 'Approved' | 'Declined';
 
 export default function ApprovalsPage() {
@@ -34,11 +34,18 @@ export default function ApprovalsPage() {
     { id: 'ob3', user: 'Alice Chen', avatar: 'AC', role: 'Admin Managers', submitted: '2026-02-11', startDate: '2026-02-24', endDate: '2026-02-25', destination: 'Makati Head Office', status: 'Pending', purpose: 'Management conference' },
   ];
 
+  const offsetRequests = [
+    { id: 'off1', user: 'Rommel Manalo', avatar: 'RM', role: 'Developer', submitted: '2026-02-12', excessHours: '11', appliedLeaveDate: '2026-02-18', appliedLeaveHours: '9', status: 'Pending', justification: 'ETPI Incident Troubleshooting' },
+    { id: 'off2', user: 'Patricia Miller', avatar: 'PM', role: 'Developer', submitted: '2026-02-10', excessHours: '8', appliedLeaveDate: '2026-02-20', appliedLeaveHours: '8', status: 'Approved', justification: 'Weekend deployment' },
+    { id: 'off3', user: 'Robert Taylor', avatar: 'RT', role: 'Developer', submitted: '2026-02-11', excessHours: '6', appliedLeaveDate: '2026-02-22', appliedLeaveHours: '6', status: 'Pending', justification: 'Emergency maintenance' },
+  ];
+
   // Combine all requests
   const allRequests = [
     ...timeOffRequests.map(r => ({ ...r, category: 'leave' as const })),
     ...overtimeRequests.map(r => ({ ...r, category: 'overtime' as const })),
     ...officialBusinessRequests.map(r => ({ ...r, category: 'official-business' as const })),
+    ...offsetRequests.map(r => ({ ...r, category: 'offset' as const })),
   ];
 
   // Filter logic
@@ -96,7 +103,7 @@ export default function ApprovalsPage() {
       </div>
 
       {/* STATS CARDS */}
-      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-5 gap-4">
         <div 
           onClick={() => setSelectedCategory('all')}
           className={`bg-white p-5 rounded-2xl border-2 transition-all cursor-pointer hover:shadow-md ${
@@ -155,6 +162,21 @@ export default function ApprovalsPage() {
             <span className="text-2xl font-bold text-gray-800">{officialBusinessRequests.length}</span>
           </div>
           <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Official Business</p>
+        </div>
+
+        <div 
+          onClick={() => setSelectedCategory('offset')}
+          className={`bg-white p-5 rounded-2xl border-2 transition-all cursor-pointer hover:shadow-md ${
+            selectedCategory === 'offset' ? 'border-brand shadow-md' : 'border-gray-100'
+          }`}
+        >
+          <div className="flex items-center justify-between mb-2">
+            <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center">
+              <RefreshCw className="text-indigo-600" size={20} />
+            </div>
+            <span className="text-2xl font-bold text-gray-800">{offsetRequests.length}</span>
+          </div>
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Offset</p>
         </div>
       </div>
 
@@ -265,13 +287,16 @@ export default function ApprovalsPage() {
                     <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold border ${
                       request.category === 'leave' ? 'bg-blue-50 text-blue-600 border-blue-100' :
                       request.category === 'overtime' ? 'bg-orange-50 text-orange-600 border-orange-100' :
-                      'bg-green-50 text-green-600 border-green-100'
+                      request.category === 'official-business' ? 'bg-green-50 text-green-600 border-green-100' :
+                      'bg-indigo-50 text-indigo-600 border-indigo-100'
                     }`}>
                       {request.category === 'leave' && <Calendar size={12} />}
                       {request.category === 'overtime' && <Clock size={12} />}
                       {request.category === 'official-business' && <Briefcase size={12} />}
+                      {request.category === 'offset' && <RefreshCw size={12} />}
                       {request.category === 'leave' ? 'Leave' : 
-                       request.category === 'overtime' ? 'Overtime' : 'Official Business'}
+                       request.category === 'overtime' ? 'Overtime' : 
+                       request.category === 'official-business' ? 'Official Business' : 'Offset'}
                     </span>
                   </td>
                   <td className="p-4">
@@ -321,6 +346,13 @@ export default function ApprovalsPage() {
                               return `${days} ${days === 1 ? 'Day' : 'Days'}`;
                             })()}
                           </p>
+                        </>
+                      )}
+                      {request.category === 'offset' && (
+                        <>
+                          <p className="font-semibold text-gray-800">Excess: {(request as any).excessHours} hrs</p>
+                          <p className="text-xs text-gray-500">Applied: {(request as any).appliedLeaveDate}</p>
+                          <p className="text-xs text-gray-600 font-semibold mt-1">{(request as any).appliedLeaveHours} hours</p>
                         </>
                       )}
                     </div>
@@ -412,8 +444,10 @@ export default function ApprovalsPage() {
                       {viewingRequest.category === 'leave' && <Calendar size={12} />}
                       {viewingRequest.category === 'overtime' && <Clock size={12} />}
                       {viewingRequest.category === 'official-business' && <Briefcase size={12} />}
+                      {viewingRequest.category === 'offset' && <RefreshCw size={12} />}
                       {viewingRequest.category === 'leave' ? 'Leave Request' : 
-                       viewingRequest.category === 'overtime' ? 'Overtime Request' : 'Official Business'}
+                       viewingRequest.category === 'overtime' ? 'Overtime Request' : 
+                       viewingRequest.category === 'official-business' ? 'Official Business' : 'Offset Request'}
                     </span>
                     <span className={`inline-flex px-3 py-1.5 rounded-lg text-xs font-bold ${
                       viewingRequest.status === 'Pending' ? 'bg-yellow-50 text-yellow-700 border border-yellow-200' :
@@ -487,6 +521,23 @@ export default function ApprovalsPage() {
                       <div className="bg-gray-50 rounded-2xl p-4 border border-gray-100">
                         <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Purpose</p>
                         <p className="text-sm text-gray-700">{viewingRequest.purpose}</p>
+                      </div>
+                    </>
+                  )}
+
+                  {viewingRequest.category === 'offset' && (
+                    <>
+                      <div className="bg-gray-100 rounded-2xl p-4 border border-gray-200">
+                        <p className="text-xs font-bold text-gray-600 uppercase tracking-wider mb-2">Excess Hours Rendered</p>
+                        <p className="text-lg font-bold text-gray-800">{viewingRequest.excessHours} hours</p>
+                      </div>
+                      <div className="bg-gray-50 rounded-2xl p-4 border border-gray-100">
+                        <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Applied Leave Hours</p>
+                        <p className="text-lg font-bold text-gray-800">{viewingRequest.appliedLeaveHours} hours</p>
+                      </div>
+                      <div className="bg-gray-50 rounded-2xl p-4 border border-gray-100">
+                        <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Justification</p>
+                        <p className="text-sm text-gray-700">{viewingRequest.justification}</p>
                       </div>
                     </>
                   )}
@@ -577,15 +628,28 @@ export default function ApprovalsPage() {
                     </>
                   )}
 
+                  {viewingRequest.category === 'offset' && (
+                    <div className="bg-gradient-to-br from-gray-600 to-gray-700 rounded-2xl p-5 text-white shadow-lg">
+                      <p className="text-xs font-bold uppercase tracking-wider mb-3 opacity-90">Applied Leave Date</p>
+                      <div className="text-center">
+                        <p className="text-4xl font-bold">{viewingRequest.appliedLeaveDate.split('-')[2]}</p>
+                        <p className="text-sm opacity-90 mt-2">
+                          {new Date(viewingRequest.appliedLeaveDate).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Message/Reason */}
-                  {(viewingRequest.message || viewingRequest.reason || viewingRequest.purpose) && (
+                  {(viewingRequest.message || viewingRequest.reason || viewingRequest.purpose || viewingRequest.justification) && (
                     <div className="bg-gray-50 rounded-2xl p-4 border border-gray-100">
                       <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">
                         {viewingRequest.category === 'leave' ? 'Message' : 
-                         viewingRequest.category === 'overtime' ? 'Reason' : 'Details'}
+                         viewingRequest.category === 'overtime' ? 'Reason' : 
+                         viewingRequest.category === 'offset' ? 'Justification' : 'Details'}
                       </p>
                       <p className="text-sm text-gray-700 leading-relaxed italic">
-                        "{viewingRequest.message || viewingRequest.reason || viewingRequest.purpose}"
+                        "{viewingRequest.message || viewingRequest.reason || viewingRequest.purpose || viewingRequest.justification}"
                       </p>
                     </div>
                   )}
