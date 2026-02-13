@@ -101,7 +101,7 @@ export default function Navbar({ isExpanded, setIsExpanded, onCloseMobile }: Nav
             isActive={pathname === '/dashboard'} 
           />
 
-          {isAdmin && (
+          {isAdmin && !isSuperAdmin && (
             <NavItem 
               href="/approvals" 
               icon={<CheckCircle size={18}/>} 
