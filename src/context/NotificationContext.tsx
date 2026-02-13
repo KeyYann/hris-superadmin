@@ -144,7 +144,6 @@ const INITIAL_CALENDAR_EVENTS: CalendarEvent[] = [
 const INITIAL_NOTIFICATIONS = [
   { id: 1, type: 'leave', user: 'Jomel Dela Cruz', action: 'submitted a', target: 'Vacation Leave', time: '2 hours ago', timestamp: new Date(), isRead: false, avatarColor: 'bg-blue-100 text-blue-600', initials: 'JD' },
   { id: 3, type: 'leave', user: 'Laurence Rey', action: 'submitted a', target: 'Sick Leave', time: 'Yesterday', timestamp: new Date(Date.now() - 86400000), isRead: true, avatarColor: 'bg-purple-100 text-purple-600', initials: 'LR' },
-  { id: 4, type: 'mention', user: 'Rommel Manalo', action: 'mentioned you in', target: 'Project Alpha Comments', time: 'Yesterday', timestamp: new Date(Date.now() - 86400000), isRead: true, avatarColor: 'bg-orange-100 text-orange-600', initials: 'RM' },
 ];
 
 const DEFAULT_CREDITS: Credit[] = [
