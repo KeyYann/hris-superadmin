@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNotifications } from '@/context/NotificationContext';
 import { 
   Search, Plus, Pencil, Trash2, Shield, 
