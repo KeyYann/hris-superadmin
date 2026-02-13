@@ -9,7 +9,7 @@ import { useAuth } from '@/context/AuthContext';
 import { 
   LayoutDashboard, Settings, LogOut, ChevronLeft, ChevronRight, ChevronDown, 
   CalendarDays, Calendar, Users, UserCog, Bell, Activity, Trash2, User,
-  List, CreditCard, Network, Shield, X, CheckCircle, FileText
+  List, CreditCard, Network, Shield, X, CheckCircle, FileText, RefreshCw
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -109,6 +109,16 @@ export default function Navbar({ isExpanded, setIsExpanded, onCloseMobile }: Nav
               isExpanded={isExpanded} 
               isActive={pathname.startsWith('/approvals')}
               hasUnread={pendingTimeOffCount > 0} 
+            />
+          )}
+
+          {isAdmin && !isSuperAdmin && (
+            <NavItem 
+              href="/offset" 
+              icon={<RefreshCw size={18}/>} 
+              label="Offset" 
+              isExpanded={isExpanded} 
+              isActive={pathname.startsWith('/offset')}
             />
           )}
 
