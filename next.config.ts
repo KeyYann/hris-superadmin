@@ -1,14 +1,6 @@
-import type { NextConfig } from "next";
+import { redirect } from 'next/navigation';
 
-const nextConfig: NextConfig = {
-  output: 'export',
-  
-  // REQUIRED: Must match your repository name exactly
-  basePath: '/hris-superadmin', 
-  
-  images: {
-    unoptimized: true,
-  },
-};
-
-export default nextConfig;
+export default function Home() {
+  // This redirects users from "/" to "/login" automatically
+  redirect('/login'); 
+}
