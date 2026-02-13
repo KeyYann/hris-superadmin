@@ -448,7 +448,9 @@ export default function ApprovalsPage() {
                       </div>
                       <div className="bg-gray-50 rounded-2xl p-4 border border-gray-100">
                         <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Duration</p>
-                        <p className="text-lg font-bold text-gray-800">{viewingRequest.duration}</p>
+                        <p className="text-lg font-bold text-gray-800">
+                          {viewingRequest.isHalfDay ? 'Half Day' : viewingRequest.duration}
+                        </p>
                       </div>
                     </>
                   )}
