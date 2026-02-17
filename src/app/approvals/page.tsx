@@ -69,7 +69,10 @@ export default function ApprovalsPage() {
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
   const paginatedRequests = filteredRequests.slice(startIndex, startIndex + ITEMS_PER_PAGE);
 
-  const pendingCount = allRequests.filter(r => r.status === 'Pending').length;
+  // Calculate pending count based on selected category
+  const pendingCount = selectedCategory === 'all' 
+    ? allRequests.filter(r => r.status === 'Pending').length
+    : allRequests.filter(r => r.category === selectedCategory && r.status === 'Pending').length;
 
   // Reset to page 1 when filters change
   useEffect(() => {
