@@ -196,6 +196,3 @@ export default function TrashPage() {
     </div>
   );
 }
-
-// Icon Helper
-import { Calendar as CalendarIcon } from 'lucide-react';
