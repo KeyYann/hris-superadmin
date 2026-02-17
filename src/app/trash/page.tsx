@@ -2,20 +2,30 @@
 
 import { useState } from 'react';
 import { useNotifications } from '@/context/NotificationContext';
+import { useAuth } from '@/context/AuthContext';
 import { 
-  Trash2, RotateCcw, Search, User, Building, FileText, AlertTriangle, Shield, Filter, ChevronDown
+  Trash2, RotateCcw, Search, User, Building, FileText, AlertTriangle, Shield, Filter, ChevronDown, Calendar as CalendarIcon
 } from 'lucide-react';
 
 export default function TrashPage() {
   const { trash, restoreItem, permanentlyDeleteItem } = useNotifications();
+  const { hasRole } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState('All');
 
   // Confirmation for Permanent Delete
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
+  // Check if user is Super Admin
+  const isSuperAdmin = hasRole(['Super Admin']);
+
   // --- FILTER LOGIC ---
   const filteredTrash = trash.filter(item => {
+    // Admin can only see Request type items
+    if (!isSuperAdmin && item.type !== 'Request') {
+      return false;
+    }
+
     const matchesType = filterType === 'All' || item.type === filterType;
     
     // Determine the name/label based on item type
@@ -23,8 +33,8 @@ export default function TrashPage() {
     if (item.type === 'User') itemName = (item.data as any).name;
     if (item.type === 'Department') itemName = (item.data as any).name;
     if (item.type === 'Request') itemName = (item.data as any).user + ' ' + (item.data as any).type;
-    if (item.type === 'Role') itemName = (item.data as any).name; // For Roles
-    if (item.type === 'Event') itemName = (item.data as any).title; // For Events
+    if (item.type === 'Role') itemName = (item.data as any).name;
+    if (item.type === 'Event') itemName = (item.data as any).title;
 
     const matchesSearch = itemName.toLowerCase().includes(searchQuery.toLowerCase());
     
@@ -101,11 +111,11 @@ export default function TrashPage() {
                    className="appearance-none pl-4 pr-10 py-3 bg-white border border-gray-200 rounded-xl text-sm font-semibold text-gray-600 focus:outline-none cursor-pointer hover:border-gray-300 shadow-sm min-w-[160px]"
                 >
                    <option value="All">All Types</option>
-                   <option value="User">Users</option>
-                   <option value="Department">Departments</option>
+                   {isSuperAdmin && <option value="User">Users</option>}
+                   {isSuperAdmin && <option value="Department">Departments</option>}
                    <option value="Request">Requests</option>
-                   <option value="Role">Roles</option>
-                   <option value="Event">Events</option>
+                   {isSuperAdmin && <option value="Role">Roles</option>}
+                   {isSuperAdmin && <option value="Event">Events</option>}
                 </select>
                 <Filter className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={14} />
              </div>
