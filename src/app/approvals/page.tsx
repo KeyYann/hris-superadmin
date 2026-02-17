@@ -121,10 +121,15 @@ export default function ApprovalsPage() {
       <div className="grid grid-cols-1 sm:grid-cols-5 gap-4">
         <div 
           onClick={() => setSelectedCategory('all')}
-          className={`bg-white p-5 rounded-2xl border-2 transition-all cursor-pointer hover:shadow-md ${
+          className={`bg-white p-5 rounded-2xl border-2 transition-all cursor-pointer hover:shadow-md relative ${
             selectedCategory === 'all' ? 'border-brand shadow-md' : 'border-gray-100'
           }`}
         >
+          {allRequests.filter(r => r.status === 'Pending').length > 0 && (
+            <div className="absolute -top-2 -right-2 w-6 h-6 bg-orange-500 text-white rounded-full flex items-center justify-center text-xs font-bold shadow-lg animate-pulse">
+              {allRequests.filter(r => r.status === 'Pending').length}
+            </div>
+          )}
           <div className="flex items-center justify-between mb-2">
             <div className="w-10 h-10 rounded-xl bg-purple-50 flex items-center justify-center">
               <FileText className="text-purple-600" size={20} />
@@ -136,10 +141,15 @@ export default function ApprovalsPage() {
 
         <div 
           onClick={() => setSelectedCategory('leave')}
-          className={`bg-white p-5 rounded-2xl border-2 transition-all cursor-pointer hover:shadow-md ${
+          className={`bg-white p-5 rounded-2xl border-2 transition-all cursor-pointer hover:shadow-md relative ${
             selectedCategory === 'leave' ? 'border-brand shadow-md' : 'border-gray-100'
           }`}
         >
+          {allRequests.filter(r => r.category === 'leave' && r.status === 'Pending').length > 0 && (
+            <div className="absolute -top-2 -right-2 w-6 h-6 bg-orange-500 text-white rounded-full flex items-center justify-center text-xs font-bold shadow-lg animate-pulse">
+              {allRequests.filter(r => r.category === 'leave' && r.status === 'Pending').length}
+            </div>
+          )}
           <div className="flex items-center justify-between mb-2">
             <div className="w-10 h-10 rounded-xl bg-blue-50 flex items-center justify-center">
               <Calendar className="text-blue-600" size={20} />
@@ -151,10 +161,15 @@ export default function ApprovalsPage() {
 
         <div 
           onClick={() => setSelectedCategory('overtime')}
-          className={`bg-white p-5 rounded-2xl border-2 transition-all cursor-pointer hover:shadow-md ${
+          className={`bg-white p-5 rounded-2xl border-2 transition-all cursor-pointer hover:shadow-md relative ${
             selectedCategory === 'overtime' ? 'border-brand shadow-md' : 'border-gray-100'
           }`}
         >
+          {allRequests.filter(r => r.category === 'overtime' && r.status === 'Pending').length > 0 && (
+            <div className="absolute -top-2 -right-2 w-6 h-6 bg-orange-500 text-white rounded-full flex items-center justify-center text-xs font-bold shadow-lg animate-pulse">
+              {allRequests.filter(r => r.category === 'overtime' && r.status === 'Pending').length}
+            </div>
+          )}
           <div className="flex items-center justify-between mb-2">
             <div className="w-10 h-10 rounded-xl bg-orange-50 flex items-center justify-center">
               <Clock className="text-orange-600" size={20} />
@@ -166,10 +181,15 @@ export default function ApprovalsPage() {
 
         <div 
           onClick={() => setSelectedCategory('official-business')}
-          className={`bg-white p-5 rounded-2xl border-2 transition-all cursor-pointer hover:shadow-md ${
+          className={`bg-white p-5 rounded-2xl border-2 transition-all cursor-pointer hover:shadow-md relative ${
             selectedCategory === 'official-business' ? 'border-brand shadow-md' : 'border-gray-100'
           }`}
         >
+          {allRequests.filter(r => r.category === 'official-business' && r.status === 'Pending').length > 0 && (
+            <div className="absolute -top-2 -right-2 w-6 h-6 bg-orange-500 text-white rounded-full flex items-center justify-center text-xs font-bold shadow-lg animate-pulse">
+              {allRequests.filter(r => r.category === 'official-business' && r.status === 'Pending').length}
+            </div>
+          )}
           <div className="flex items-center justify-between mb-2">
             <div className="w-10 h-10 rounded-xl bg-green-50 flex items-center justify-center">
               <Briefcase className="text-green-600" size={20} />
@@ -181,10 +201,15 @@ export default function ApprovalsPage() {
 
         <div 
           onClick={() => setSelectedCategory('offset')}
-          className={`bg-white p-5 rounded-2xl border-2 transition-all cursor-pointer hover:shadow-md ${
+          className={`bg-white p-5 rounded-2xl border-2 transition-all cursor-pointer hover:shadow-md relative ${
             selectedCategory === 'offset' ? 'border-brand shadow-md' : 'border-gray-100'
           }`}
         >
+          {allRequests.filter(r => r.category === 'offset' && r.status === 'Pending').length > 0 && (
+            <div className="absolute -top-2 -right-2 w-6 h-6 bg-orange-500 text-white rounded-full flex items-center justify-center text-xs font-bold shadow-lg animate-pulse">
+              {allRequests.filter(r => r.category === 'offset' && r.status === 'Pending').length}
+            </div>
+          )}
           <div className="flex items-center justify-between mb-2">
             <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center">
               <RefreshCw className="text-indigo-600" size={20} />
