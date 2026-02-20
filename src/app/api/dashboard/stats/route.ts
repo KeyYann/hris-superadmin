@@ -2,9 +2,16 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
 // Use service role key for admin operations
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+if (!supabaseUrl || !supabaseServiceKey) {
+  throw new Error('Missing Supabase environment variables');
+}
+
 const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  supabaseUrl,
+  supabaseServiceKey,
   {
     auth: {
       autoRefreshToken: false,
@@ -16,9 +23,11 @@ const supabaseAdmin = createClient(
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const userId = searchParams.get('userId');
+    const userId = searchParams.get('userId'); 
     const userRole = searchParams.get('userRole');
     const departmentId = searchParams.get('departmentId');
+
+    console.log('Dashboard stats request:', { userId, userRole, departmentId });
 
     // Get all users count (filter by department for regular admins)
     let usersQuery = supabaseAdmin
@@ -31,7 +40,10 @@ export async function GET(request: Request) {
 
     const { count: totalUsers, error: usersError } = await usersQuery;
 
-    if (usersError) throw usersError;
+    if (usersError) {
+      console.error('Error fetching users:', usersError);
+      throw usersError;
+    }
 
     // Get all time off requests for filtering
     const { data: allTimeOffRequests, error: allRequestsError } = await supabaseAdmin
@@ -46,13 +58,19 @@ export async function GET(request: Request) {
         )
       `);
 
-    if (allRequestsError) throw allRequestsError;
+    if (allRequestsError) {
+      console.error('Error fetching time off requests:', allRequestsError);
+      throw allRequestsError;
+    }
 
     // Filter by department for regular admins
     const filterByDepartment = (requests: any[]) => {
       if (!requests) return [];
       if (userRole === 'Super Admin' || !departmentId) return requests;
-      return requests.filter(req => (req.users as any)?.department_id === departmentId);
+      return requests.filter(req => {
+        const user = Array.isArray(req.users) ? req.users[0] : req.users;
+        return user?.department_id === departmentId;
+      });
     };
 
     const filteredRequests = filterByDepartment(allTimeOffRequests || []);
@@ -84,21 +102,27 @@ export async function GET(request: Request) {
       `)
       .in('id', recentRequestIds.length > 0 ? recentRequestIds : ['']);
 
-    if (notifError) throw notifError;
+    if (notifError) {
+      console.error('Error fetching notification details:', notifError);
+      throw notifError;
+    }
 
     // Format notifications
-    const notifications = recentRequestsDetails?.map((req, index) => ({
-      id: req.id,
-      type: 'leave',
-      user: req.users?.name || 'Unknown',
-      action: 'submitted a',
-      target: req.leave_type,
-      time: getTimeAgo(req.submitted_at),
-      timestamp: req.submitted_at,
-      isRead: false,
-      avatarColor: getAvatarColor(index),
-      initials: req.users?.avatar || 'UK'
-    })) || [];
+    const notifications = recentRequestsDetails?.map((req, index) => {
+      const user = Array.isArray(req.users) ? req.users[0] : req.users;
+      return {
+        id: req.id,
+        type: 'leave',
+        user: user?.name || 'Unknown',
+        action: 'submitted a',
+        target: req.leave_type,
+        time: getTimeAgo(req.submitted_at),
+        timestamp: req.submitted_at,
+        isRead: false,
+        avatarColor: getAvatarColor(index),
+        initials: user?.avatar || 'UK'
+      };
+    }) || [];
 
     // Get monthly leave applications for the current year (filtered by department)
     const currentYear = new Date().getFullYear();
