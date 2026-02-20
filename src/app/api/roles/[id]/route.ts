@@ -16,12 +16,12 @@ const supabaseAdmin = createClient(
 // PUT - Update role
 export async function PUT(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id: roleId } = await params;
     const body = await request.json();
     const { name, description } = body;
-    const roleId = params.id;
 
     if (!name) {
       return NextResponse.json(
@@ -72,10 +72,10 @@ export async function PUT(
 // DELETE - Delete role
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const roleId = params.id;
+    const { id: roleId } = await params;
 
     // Check if any users are assigned to this role
     const { count, error: countError } = await supabaseAdmin

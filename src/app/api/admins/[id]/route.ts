@@ -49,14 +49,16 @@ export async function PUT(
 
     if (error) throw error;
 
+    const role = Array.isArray(updatedUser.roles) ? updatedUser.roles[0] : updatedUser.roles;
+
     return NextResponse.json({
       admin: {
         id: updatedUser.id,
         name: updatedUser.name,
         email: updatedUser.email,
         avatar: updatedUser.avatar,
-        role: updatedUser.roles?.name,
-        roleId: updatedUser.roles?.id
+        role: role?.name,
+        roleId: role?.id
       }
     });
 

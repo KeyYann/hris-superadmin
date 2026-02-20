@@ -35,20 +35,24 @@ export async function GET() {
     if (error) throw error;
 
     // Filter admin users (roles that include 'Admin')
-    const adminUsers = users?.filter(
-      user => user.roles?.name?.includes('Admin')
-    ) || [];
+    const adminUsers = users?.filter(user => {
+      const role = Array.isArray(user.roles) ? user.roles[0] : user.roles;
+      return role?.name?.includes('Admin');
+    }) || [];
 
     // Format the response
-    const formattedAdmins = adminUsers.map(user => ({
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      avatar: user.avatar,
-      role: user.roles?.name || 'Unknown',
-      roleId: user.roles?.id,
-      status: user.status
-    }));
+    const formattedAdmins = adminUsers.map(user => {
+      const role = Array.isArray(user.roles) ? user.roles[0] : user.roles;
+      return {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        avatar: user.avatar,
+        role: role?.name || 'Unknown',
+        roleId: role?.id,
+        status: user.status
+      };
+    });
 
     return NextResponse.json({ admins: formattedAdmins });
 
@@ -163,14 +167,16 @@ export async function POST(request: Request) {
 
     if (updateError) throw updateError;
 
+    const role = Array.isArray(updatedUser.roles) ? updatedUser.roles[0] : updatedUser.roles;
+
     return NextResponse.json({
       admin: {
         id: updatedUser.id,
         name: updatedUser.name,
         email: updatedUser.email,
         avatar: updatedUser.avatar,
-        role: updatedUser.roles?.name,
-        roleId: updatedUser.roles?.id
+        role: role?.name,
+        roleId: role?.id
       },
       message: 'Admin account created successfully. User can now log in.'
     });

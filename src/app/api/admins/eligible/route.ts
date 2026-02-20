@@ -43,15 +43,19 @@ export async function GET() {
     if (rolesError) throw rolesError;
 
     // Filter eligible employees (non-admin users)
-    const eligibleEmployees = users?.filter(
-      user => !user.roles?.name?.includes('Admin')
-    ).map(user => ({
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      avatar: user.avatar,
-      role: user.roles?.name
-    })) || [];
+    const eligibleEmployees = users?.filter(user => {
+      const role = Array.isArray(user.roles) ? user.roles[0] : user.roles;
+      return !role?.name?.includes('Admin');
+    }).map(user => {
+      const role = Array.isArray(user.roles) ? user.roles[0] : user.roles;
+      return {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        avatar: user.avatar,
+        role: role?.name
+      };
+    }) || [];
 
     return NextResponse.json({
       employees: eligibleEmployees,
