@@ -3,11 +3,11 @@
 import { useState } from 'react';
 import { 
   Save, Database, Shield, FileCode, Download, 
-  Plus, Trash2, AlertCircle, Clock, Settings, Briefcase, RefreshCw
+  Clock, RefreshCw
 } from 'lucide-react';
 
 export default function SettingsPage() {
-  const [activeTab, setActiveTab] = useState('policies'); // Default to policies now
+  const [activeTab, setActiveTab] = useState('backup'); // Default to backup
   const [loading, setLoading] = useState(false);
 
   // Mock Save Handler
@@ -44,15 +44,8 @@ export default function SettingsPage() {
       {/* MAIN CONTENT */}
       <div className="flex-1 bg-white rounded-3xl shadow-sm border border-gray-100 flex flex-col md:flex-row overflow-hidden">
         
-        {/* SIDEBAR TABS - Removed General */}
+        {/* SIDEBAR TABS */}
         <div className="w-full md:w-64 bg-gray-50/50 border-r border-gray-100 p-4 flex flex-row md:flex-col gap-2 overflow-x-auto md:overflow-visible">
-          <TabButton 
-            id="policies" 
-            label="Leave Policies" 
-            icon={<Briefcase size={18} />} 
-            activeTab={activeTab} 
-            onClick={setActiveTab} 
-          />
           <TabButton 
             id="backup" 
             label="Backup & Data" 
@@ -73,8 +66,6 @@ export default function SettingsPage() {
         <div className="flex-1 p-6 md:p-10 overflow-y-auto">
           <div className="max-w-5xl mx-auto">
             
-            {/* Removed GeneralSettings Component Call */}
-            {activeTab === 'policies' && <LeavePoliciesSettings />}
             {activeTab === 'backup' && <BackupSettings />}
             {activeTab === 'security' && <SecuritySettings />}
 
@@ -106,74 +97,7 @@ function TabButton({ id, label, icon, activeTab, onClick }: any) {
   );
 }
 
-// 1. LEAVE POLICIES (CREDIT TYPES)
-function LeavePoliciesSettings() {
-  const [leaveTypes, setLeaveTypes] = useState([
-    { id: 1, name: 'Vacation Leave', defaultCredits: 15, carryOver: true },
-    { id: 2, name: 'Sick Leave', defaultCredits: 15, carryOver: false },
-    { id: 3, name: 'Emergency Leave', defaultCredits: 5, carryOver: false },
-    { id: 4, name: 'Bereavement Leave', defaultCredits: 3, carryOver: false },
-    { id: 5, name: 'Paternity Leave', defaultCredits: 7, carryOver: false },
-    { id: 6, name: 'Maternity Leave', defaultCredits: 105, carryOver: false },
-  ]);
-
-  return (
-    <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-      <div className="flex justify-between items-start">
-        <div>
-          <h2 className="text-xl font-bold text-gray-800">Leave Policies</h2>
-          <p className="text-gray-500 text-sm mt-1">Define the types of leave available in the system.</p>
-          <div className="mt-2 p-3 bg-blue-50 text-blue-700 text-xs rounded-lg border border-blue-100 flex items-start gap-2 max-w-2xl">
-             <AlertCircle size={16} className="shrink-0 mt-0.5"/>
-             <p><strong>Note:</strong> Adjusting "Default Credits" here only affects <strong>new employees</strong> created in the future. To change credits for existing employees, please use the <strong>Manage Credits</strong> page.</p>
-          </div>
-        </div>
-        <button className="flex items-center gap-2 px-4 py-2 bg-gray-900 text-white text-xs font-bold rounded-xl hover:bg-black transition-colors">
-           <Plus size={14}/> Add Type
-        </button>
-      </div>
-
-      <div className="border border-gray-200 rounded-2xl overflow-hidden">
-         <table className="w-full text-left">
-            <thead className="bg-gray-50 border-b border-gray-200 text-xs uppercase text-gray-500 font-bold">
-               <tr>
-                  <th className="p-4 pl-6">Leave Type Name</th>
-                  <th className="p-4">Default Credits (Yearly)</th>
-                  <th className="p-4">Carry Over?</th>
-                  <th className="p-4 text-right pr-6">Action</th>
-               </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-100">
-               {leaveTypes.map((type) => (
-                  <tr key={type.id} className="hover:bg-gray-50/50">
-                     <td className="p-4 pl-6 font-bold text-gray-800">{type.name}</td>
-                     <td className="p-4">
-                        <input 
-                           type="number" 
-                           defaultValue={type.defaultCredits}
-                           className="w-20 px-2 py-1 bg-white border border-gray-200 rounded-lg text-sm text-center font-bold focus:outline-none focus:border-brand"
-                        />
-                     </td>
-                     <td className="p-4">
-                        <div className={`inline-flex items-center px-2 py-1 rounded-md text-xs font-bold ${type.carryOver ? 'bg-emerald-50 text-emerald-700' : 'bg-gray-100 text-gray-500'}`}>
-                           {type.carryOver ? 'Yes' : 'No'}
-                        </div>
-                     </td>
-                     <td className="p-4 text-right pr-6">
-                        <button className="p-2 text-gray-400 hover:text-red-600 transition-colors">
-                           <Trash2 size={16} />
-                        </button>
-                     </td>
-                  </tr>
-               ))}
-            </tbody>
-         </table>
-      </div>
-    </div>
-  );
-}
-
-// 2. BACKUP SETTINGS
+// BACKUP SETTINGS
 function BackupSettings() {
   const [backups, setBackups] = useState([
      { id: 1, date: '2026-02-09 02:00 AM', size: '12.4 MB', type: 'Auto' },
@@ -249,7 +173,7 @@ function BackupSettings() {
   );
 }
 
-// 3. SECURITY SETTINGS
+// SECURITY SETTINGS
 function SecuritySettings() {
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">

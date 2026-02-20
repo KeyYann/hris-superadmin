@@ -4,7 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { Mail, Lock, Eye, EyeOff, ArrowRight, Loader2, Check, AlertCircle, Circle, X } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, ArrowRight, Loader2, Check, AlertCircle } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 
 export default function LoginPage() {
@@ -15,12 +15,6 @@ export default function LoginPage() {
   const [isCaptchaVerified, setIsCaptchaVerified] = useState(false);
   const [formData, setFormData] = useState({ email: '', password: '' });
   const [error, setError] = useState('');
-  const [showTestCredentials, setShowTestCredentials] = useState(false);
-
-  const fillCredentials = (email: string, password: string) => {
-    setFormData({ email, password });
-    setShowTestCredentials(false);
-  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -177,49 +171,6 @@ export default function LoginPage() {
           </button>
 
         </form>
-      </div>
-
-      {/* --- TEST CREDENTIALS POPUP --- */}
-      <div className="fixed right-6 top-1/2 -translate-y-1/2 z-50">
-        {!showTestCredentials ? (
-          <button
-            onClick={() => setShowTestCredentials(true)}
-            className="bg-gray-700 text-white px-4 py-3 rounded-xl shadow-lg hover:bg-gray-800 transition-all"
-            title="Test Credentials"
-          >
-            <Circle size={20} />
-          </button>
-        ) : (
-          <div className="bg-white rounded-xl shadow-xl border border-gray-200 w-72">
-            <div className="bg-gray-700 text-white p-3 rounded-t-xl flex items-center justify-between">
-              <span className="font-bold text-sm">Test Accounts</span>
-              <button
-                onClick={() => setShowTestCredentials(false)}
-                className="hover:bg-white/20 rounded p-1"
-              >
-                <X size={16} />
-              </button>
-            </div>
-            
-            <div className="p-3 space-y-2">
-              <button
-                onClick={() => fillCredentials('sarah.s@abbeconsult.com', 'admin123')}
-                className="w-full p-3 rounded-lg border-2 border-gray-200 hover:border-gray-400 hover:bg-gray-50 transition-all text-left"
-              >
-                <p className="font-bold text-sm text-gray-800">Super Admin</p>
-                <p className="text-xs text-gray-500 mt-1">sarah.s@abbeconsult.com</p>
-              </button>
-              
-              <button
-                onClick={() => fillCredentials('victoria.h@abbeconsult.com', 'admin123')}
-                className="w-full p-3 rounded-lg border-2 border-gray-200 hover:border-gray-400 hover:bg-gray-50 transition-all text-left"
-              >
-                <p className="font-bold text-sm text-gray-800">Admin</p>
-                <p className="text-xs text-gray-500 mt-1">victoria.h@abbeconsult.com</p>
-              </button>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* --- CSS ANIMATIONS --- */}

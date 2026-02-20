@@ -1,37 +1,79 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { useNotifications } from '@/context/NotificationContext';
+import { useAuth } from '@/context/AuthContext';
 import { 
   Bell, Clock, AlertCircle, Search, Calendar, ChevronDown
 } from 'lucide-react';
 
 export default function NotificationsPage() {
-  const { notifications, markAllAsRead } = useNotifications();
+  const { user } = useAuth();
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [isLoading, setIsLoading] = useState(true);
   
   const [activeTab, setActiveTab] = useState<'all' | 'unread' | 'archived'>('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [dateFilter, setDateFilter] = useState('All Time');
 
-  // --- SAFE EXIT LOGIC (Fixes Strict Mode Double-Invoke) ---
+  // Fetch notifications
+  useEffect(() => {
+    if (user?.id) {
+      fetchNotifications();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, user?.role, user?.departmentId]);
+
+  const fetchNotifications = async () => {
+    if (!user?.id) return;
+    
+    try {
+      setIsLoading(true);
+      const params = new URLSearchParams({
+        userId: user.id,
+        userRole: user.role,
+      });
+      if (user.departmentId) {
+        params.append('departmentId', user.departmentId);
+      }
+      
+      const response = await fetch(`/api/notifications?${params.toString()}`);
+      const data = await response.json();
+      
+      setNotifications(data.notifications || []);
+      setUnreadCount(data.unreadCount || 0);
+    } catch (error) {
+      console.error('Error fetching notifications:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Mark all as read when leaving the page
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
-    // If we are mounting, it means the user is ON the page.
-    // If there was a pending "mark read" action (from a quick unmount/remount), cancel it.
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);
       timeoutRef.current = null;
     }
 
     return () => {
-      // When unmounting, wait 500ms before marking as read.
-      // If the user navigates back (or Strict Mode remounts), the effect above will cancel this.
-      timeoutRef.current = setTimeout(() => {
-        markAllAsRead();
+      timeoutRef.current = setTimeout(async () => {
+        if (user?.id) {
+          try {
+            await fetch('/api/notifications/mark-read', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ userId: user.id })
+            });
+          } catch (error) {
+            console.error('Error marking notifications as read:', error);
+          }
+        }
       }, 500);
     };
-  }, [markAllAsRead]);
+  }, [user]);
 
   // --- FILTER LOGIC ---
   const filteredNotifications = notifications.filter(n => {
@@ -40,10 +82,7 @@ export default function NotificationsPage() {
     
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
-      const textMatch = 
-        n.user.toLowerCase().includes(query) || 
-        n.target.toLowerCase().includes(query) || 
-        n.action.toLowerCase().includes(query);
+      const textMatch = n.message.toLowerCase().includes(query);
       if (!textMatch) return false;
     }
 
@@ -60,8 +99,6 @@ export default function NotificationsPage() {
 
     return true; 
   });
-
-  const unreadCount = notifications.filter(n => !n.isRead).length;
 
   return (
     <div className="w-full mx-auto flex flex-col h-[calc(100vh-2rem)]">
@@ -107,7 +144,11 @@ export default function NotificationsPage() {
 
         {/* NOTIFICATION LIST */}
         <div className="flex-1 overflow-y-auto">
-            {filteredNotifications.length === 0 ? (
+            {isLoading ? (
+                <div className="h-full flex items-center justify-center">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand"></div>
+                </div>
+            ) : filteredNotifications.length === 0 ? (
                 <div className="h-full flex flex-col items-center justify-center text-gray-400">
                     <Bell size={64} className="mb-4 opacity-20" />
                     <p className="text-lg font-medium">No notifications found.</p>
@@ -123,17 +164,18 @@ export default function NotificationsPage() {
                                 ${!notif.isRead ? 'bg-blue-50/10' : ''}
                             `}
                         >
-                            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-sm font-bold shrink-0 ${notif.avatarColor}`}>
-                                {notif.type === 'alert' ? <AlertCircle size={20} /> : notif.initials}
+                            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-sm font-bold shrink-0 ${
+                              notif.type === 'time_off_requests' ? 'bg-blue-100 text-blue-600' :
+                              notif.type === 'overtime_requests' ? 'bg-orange-100 text-orange-600' :
+                              notif.type === 'official_business_requests' ? 'bg-green-100 text-green-600' :
+                              'bg-purple-100 text-purple-600'
+                            }`}>
+                                <Bell size={20} />
                             </div>
 
                             <div className="flex-1 min-w-0 flex flex-col justify-center">
                                 <p className="text-sm text-gray-800 leading-snug">
-                                    <span className="font-bold text-gray-900">{notif.user}</span> 
-                                    {' '}{notif.action}{' '}
-                                    <span className={`font-semibold ${notif.type === 'alert' ? 'text-red-600' : 'text-gray-900'}`}>
-                                        {notif.target}
-                                    </span>
+                                    {notif.message}
                                     
                                     {/* Unread Dot (INLINE) */}
                                     {!notif.isRead && (

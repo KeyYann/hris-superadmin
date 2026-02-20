@@ -1,16 +1,14 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useNotifications } from '@/context/NotificationContext'; 
 import { 
   Search, ChevronRight, Building, Mail, 
-  ArrowLeft, Edit, Save, Filter, BriefcaseBusiness, User, Shield
+  ArrowLeft, Edit, Save, Filter, BriefcaseBusiness, User, Shield, Loader2
 } from 'lucide-react';
 
 export default function ManageCreditsPage() {
-  // 1. Get credit helpers from Context
-  const { users, getUserCredits, updateUserCredits } = useNotifications(); 
-  
+  const [users, setUsers] = useState<any[]>([]);
+  const [isLoadingUsers, setIsLoadingUsers] = useState(true);
   const [selectedUser, setSelectedUser] = useState<any | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   
@@ -21,16 +19,49 @@ export default function ManageCreditsPage() {
   // Editing State
   const [isEditing, setIsEditing] = useState(false);
   const [localCredits, setLocalCredits] = useState<any[]>([]);
+  const [isLoadingCredits, setIsLoadingCredits] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
 
-  // 2. Sync local credits when a user is selected
+  // Fetch all users
+  useEffect(() => {
+    fetchUsers();
+  }, []);
+
+  const fetchUsers = async () => {
+    try {
+      setIsLoadingUsers(true);
+      const response = await fetch('/api/users');
+      const data = await response.json();
+      setUsers(data.users || []);
+    } catch (error) {
+      console.error('Error fetching users:', error);
+    } finally {
+      setIsLoadingUsers(false);
+    }
+  };
+
+  // Fetch credits when user is selected
   useEffect(() => {
     if (selectedUser) {
-      const userCredits = getUserCredits(selectedUser.id);
-      setLocalCredits(userCredits);
+      fetchUserCredits(selectedUser.id);
     }
-  }, [selectedUser, getUserCredits]);
+  }, [selectedUser]);
 
-  const departments = ['All', ...Array.from(new Set(users.map(u => u.department)))];
+  const fetchUserCredits = async (userId: string) => {
+    try {
+      setIsLoadingCredits(true);
+      const response = await fetch(`/api/credits?userId=${userId}`);
+      const data = await response.json();
+      setLocalCredits(data.credits || []);
+    } catch (error) {
+      console.error('Error fetching credits:', error);
+      setLocalCredits([]);
+    } finally {
+      setIsLoadingCredits(false);
+    }
+  };
+
+  const departments = ['All', ...Array.from(new Set(users.map(u => u.department).filter(Boolean)))];
 
   // Helper: Get Company
   const getCompany = (email: string) => {
@@ -38,7 +69,7 @@ export default function ManageCreditsPage() {
   };
 
   // Helper: Check if Admin
-  const isAdmin = (role: string) => role.toLowerCase().includes('admin');
+  const isAdmin = (role: string) => role?.toLowerCase().includes('admin');
 
   // Filter Logic
   const filteredUsers = users.filter(user => {
@@ -52,9 +83,12 @@ export default function ManageCreditsPage() {
     return matchesSearch && matchesDept && matchesCompany;
   });
 
-  // 3. Handle Input Changes in the Table
+  // Handle Input Changes in the Table
   const handleCreditChange = (index: number, field: 'entitled' | 'balance', value: string) => {
     const updatedCredits = [...localCredits];
+    // Don't allow editing unlimited leave types
+    if (updatedCredits[index].isUnlimited) return;
+    
     updatedCredits[index] = { 
       ...updatedCredits[index], 
       [field]: parseFloat(value) || 0 
@@ -62,13 +96,30 @@ export default function ManageCreditsPage() {
     setLocalCredits(updatedCredits);
   };
 
-  // 4. Handle Save Action
-  const handleToggleEdit = () => {
+  // Handle Save Action
+  const handleToggleEdit = async () => {
     if (isEditing) {
-      if (selectedUser) {
-        updateUserCredits(selectedUser.id, localCredits);
+      try {
+        setIsSaving(true);
+        const response = await fetch('/api/credits', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: selectedUser.id,
+            credits: localCredits
+          })
+        });
+
+        if (response.ok) {
+          setIsEditing(false);
+          // Refresh credits
+          await fetchUserCredits(selectedUser.id);
+        }
+      } catch (error) {
+        console.error('Error saving credits:', error);
+      } finally {
+        setIsSaving(false);
       }
-      setIsEditing(false);
     } else {
       setIsEditing(true);
     }
@@ -138,50 +189,56 @@ export default function ManageCreditsPage() {
             </div>
 
             <div className="p-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                {filteredUsers.map((user) => {
-                  const company = getCompany(user.email);
+              {isLoadingUsers ? (
+                <div className="flex items-center justify-center py-20">
+                  <Loader2 className="animate-spin text-gray-300" size={32} />
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                  {filteredUsers.map((user) => {
+                    const company = getCompany(user.email);
+                    
+                    return (
+                      <button 
+                          key={user.id}
+                          onClick={() => setSelectedUser(user)}
+                          className="flex items-center gap-4 p-4 bg-white border border-gray-100 rounded-2xl hover:border-brand/30 hover:shadow-md hover:bg-orange-50/10 transition-all text-left group relative overflow-hidden"
+                      >
+                          <div className="w-14 h-14 rounded-full bg-gray-100 text-gray-600 flex items-center justify-center font-bold text-lg border border-gray-200 group-hover:border-brand/20 group-hover:text-brand transition-colors overflow-hidden shrink-0">
+                          {user.avatar}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2 mb-0.5">
+                                  <h3 className="font-bold text-gray-800 truncate group-hover:text-brand transition-colors">{user.name}</h3>
+                                  <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold border mt-1 ${company === 'ABBE' ? 'bg-orange-50 text-orange-600 border-orange-100' : 'bg-indigo-50 text-indigo-600 border-indigo-100'}`}>
+                                      {company}
+                                  </span>
+                              </div>
+                              
+                              {/* CONDITIONAL DISPLAY: Role for Admins, Department for Users */}
+                              {isAdmin(user.role) ? (
+                                  <p className="text-xs text-gray-500 flex items-center gap-1 mt-0.5">
+                                      <Shield size={12} className="text-brand"/> {user.role}
+                                  </p>
+                              ) : (
+                                  <p className="text-xs text-gray-400 flex items-center gap-1 mt-0.5">
+                                      <Building size={12} /> {user.department || 'No Department'}
+                                  </p>
+                              )}
+                          </div>
+                          <ChevronRight className="text-gray-300 group-hover:text-brand group-hover:translate-x-1 transition-all" size={20} />
+                      </button>
+                    );
+                  })}
                   
-                  return (
-                    <button 
-                        key={user.id}
-                        onClick={() => setSelectedUser(user)}
-                        className="flex items-center gap-4 p-4 bg-white border border-gray-100 rounded-2xl hover:border-brand/30 hover:shadow-md hover:bg-orange-50/10 transition-all text-left group relative overflow-hidden"
-                    >
-                        <div className="w-14 h-14 rounded-full bg-gray-100 text-gray-600 flex items-center justify-center font-bold text-lg border border-gray-200 group-hover:border-brand/20 group-hover:text-brand transition-colors overflow-hidden shrink-0">
-                        {user.avatar}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-0.5">
-                                <h3 className="font-bold text-gray-800 truncate group-hover:text-brand transition-colors">{user.name}</h3>
-                                <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold border mt-1 ${company === 'ABBE' ? 'bg-orange-50 text-orange-600 border-orange-100' : 'bg-indigo-50 text-indigo-600 border-indigo-100'}`}>
-                                    {company}
-                                </span>
-                            </div>
-                            
-                            {/* CONDITIONAL DISPLAY: Role for Admins, Department for Users */}
-                            {isAdmin(user.role) ? (
-                                <p className="text-xs text-gray-500 flex items-center gap-1 mt-0.5">
-                                    <Shield size={12} className="text-brand"/> {user.role}
-                                </p>
-                            ) : (
-                                <p className="text-xs text-gray-400 flex items-center gap-1 mt-0.5">
-                                    <Building size={12} /> {user.department}
-                                </p>
-                            )}
-                        </div>
-                        <ChevronRight className="text-gray-300 group-hover:text-brand group-hover:translate-x-1 transition-all" size={20} />
-                    </button>
-                  );
-                })}
-                
-                {filteredUsers.length === 0 && (
-                  <div className="col-span-full py-20 text-center text-gray-400">
-                    <User size={48} className="mx-auto mb-3 opacity-20" />
-                    <p>No employees found matching filters.</p>
-                  </div>
-                )}
-              </div>
+                  {filteredUsers.length === 0 && (
+                    <div className="col-span-full py-20 text-center text-gray-400">
+                      <User size={48} className="mx-auto mb-3 opacity-20" />
+                      <p>No employees found matching filters.</p>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         ) : (
@@ -224,7 +281,7 @@ export default function ManageCreditsPage() {
                           </span>
                       ) : (
                           <span className="flex items-center gap-1.5 px-3 py-1 bg-gray-50 rounded-lg border border-gray-100">
-                            <Building size={14} className="text-brand"/> {selectedUser.department}
+                            <Building size={14} className="text-brand"/> {selectedUser.department || 'No Department'}
                           </span>
                       )}
 
@@ -244,61 +301,84 @@ export default function ManageCreditsPage() {
                     <div className="flex items-center gap-3 w-full sm:w-auto justify-end">
                       <button 
                         onClick={handleToggleEdit}
-                        className={`flex items-center justify-center gap-2 px-6 py-2.5 text-white text-sm font-bold rounded-xl shadow-md transition-all active:scale-95 whitespace-nowrap min-w-[140px]
+                        disabled={isSaving || isLoadingCredits}
+                        className={`flex items-center justify-center gap-2 px-6 py-2.5 text-white text-sm font-bold rounded-xl shadow-md transition-all active:scale-95 whitespace-nowrap min-w-[140px] disabled:opacity-50 disabled:cursor-not-allowed
                             ${isEditing ? 'bg-emerald-500 hover:bg-emerald-600 shadow-emerald-100' : 'bg-blue-600 hover:bg-blue-700 shadow-blue-100'}
                         `}
                       >
-                        {isEditing ? <Save size={16} /> : <Edit size={16} />} 
-                        {isEditing ? 'Save Changes' : 'Edit Credits'}
+                        {isSaving ? (
+                          <>
+                            <Loader2 size={16} className="animate-spin" /> Saving...
+                          </>
+                        ) : (
+                          <>
+                            {isEditing ? <Save size={16} /> : <Edit size={16} />} 
+                            {isEditing ? 'Save Changes' : 'Edit Credits'}
+                          </>
+                        )}
                       </button>
                     </div>
                   </div>
 
                   <div className="overflow-x-auto">
-                    <table className="w-full text-left border-collapse">
-                      <thead>
-                        <tr className="border-b border-gray-100 text-sm font-bold text-gray-900 bg-gray-50/50">
-                          <th className="p-5 pl-8 w-1/2">Leave Type</th>
-                          <th className="p-5 w-1/4">Entitled</th>
-                          <th className="p-5 w-1/4">Balance</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-gray-50 text-sm text-gray-700">
-                        {localCredits.map((credit: any, index: number) => (
-                          <tr key={index} className="hover:bg-gray-50 transition-colors group">
-                            <td className="p-5 pl-8 font-medium text-gray-900">{credit.type}</td>
-                            <td className="p-5">
-                              {isEditing ? (
-                                <input 
-                                  type="number" 
-                                  value={credit.entitled}
-                                  onChange={(e) => handleCreditChange(index, 'entitled', e.target.value)}
-                                  className="w-24 px-3 py-2 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-semibold text-gray-900 shadow-sm"
-                                />
-                              ) : (
-                                <span className="px-3 py-1 bg-gray-100 rounded-lg font-semibold text-gray-600 border border-gray-200">
-                                  {credit.entitled}
-                                </span>
-                              )}
-                            </td>
-                            <td className="p-5">
-                              {isEditing ? (
-                                <input 
-                                  type="number" 
-                                  value={credit.balance}
-                                  onChange={(e) => handleCreditChange(index, 'balance', e.target.value)}
-                                  className="w-24 px-3 py-2 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-semibold text-gray-900 shadow-sm"
-                                />
-                              ) : (
-                                <span className={`px-3 py-1 rounded-lg font-bold border ${credit.balance > 0 ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-red-50 text-red-600 border-red-100'}`}>
-                                  {Number(credit.balance).toFixed(1)}
-                                </span>
-                              )}
-                            </td>
+                    {isLoadingCredits ? (
+                      <div className="flex items-center justify-center py-20">
+                        <Loader2 className="animate-spin text-gray-300" size={32} />
+                      </div>
+                    ) : (
+                      <table className="w-full text-left border-collapse">
+                        <thead>
+                          <tr className="border-b border-gray-100 text-sm font-bold text-gray-900 bg-gray-50/50">
+                            <th className="p-5 pl-8 w-1/2">Leave Type</th>
+                            <th className="p-5 w-1/4">Entitled</th>
+                            <th className="p-5 w-1/4">Balance</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                        </thead>
+                        <tbody className="divide-y divide-gray-50 text-sm text-gray-700">
+                          {localCredits.map((credit: any, index: number) => (
+                            <tr key={index} className="hover:bg-gray-50 transition-colors group">
+                              <td className="p-5 pl-8 font-medium text-gray-900">{credit.type}</td>
+                              <td className="p-5">
+                                {credit.isUnlimited ? (
+                                  <span className="px-3 py-1 bg-gray-100 rounded-lg font-bold text-gray-600 border border-gray-200">
+                                    ∞ Unlimited
+                                  </span>
+                                ) : isEditing ? (
+                                  <input 
+                                    type="number" 
+                                    value={credit.entitled}
+                                    onChange={(e) => handleCreditChange(index, 'entitled', e.target.value)}
+                                    className="w-24 px-3 py-2 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-semibold text-gray-900 shadow-sm"
+                                  />
+                                ) : (
+                                  <span className="px-3 py-1 bg-gray-100 rounded-lg font-semibold text-gray-600 border border-gray-200">
+                                    {credit.entitled}
+                                  </span>
+                                )}
+                              </td>
+                              <td className="p-5">
+                                {credit.isUnlimited ? (
+                                  <span className="px-3 py-1 bg-gray-100 rounded-lg font-bold text-gray-600 border border-gray-200">
+                                    ∞ Unlimited
+                                  </span>
+                                ) : isEditing ? (
+                                  <input 
+                                    type="number" 
+                                    value={credit.balance}
+                                    onChange={(e) => handleCreditChange(index, 'balance', e.target.value)}
+                                    className="w-24 px-3 py-2 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all font-semibold text-gray-900 shadow-sm"
+                                  />
+                                ) : (
+                                  <span className={`px-3 py-1 rounded-lg font-bold border ${Number(credit.balance) > 0 ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-red-50 text-red-600 border-red-100'}`}>
+                                    {Number(credit.balance).toFixed(1)}
+                                  </span>
+                                )}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
                   </div>
                 </div>
 

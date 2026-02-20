@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@heroicons/react": "^2.2.0",
+    "@supabase/supabase-js": "^2.96.0",
     "date-fns": "^4.1.0",
     "gapi-script": "^1.2.0",
     "lucide-react": "^0.563.0",

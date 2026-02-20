@@ -1,21 +1,53 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useNotifications } from '@/context/NotificationContext'; 
 import { 
   Search, Filter, ChevronDown, ArrowUpDown, History, FileText, Calendar
 } from 'lucide-react';
+import { useAuth } from '@/context/AuthContext';
 
 const ITEMS_PER_PAGE = 10;
 
 export default function HistoryPage() {
-  const { timeOffRequests } = useNotifications();
+  const { user } = useAuth();
+  const [timeOffRequests, setTimeOffRequests] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState('All');
   const [sortOrder, setSortOrder] = useState('Newest');
-
   const [currentPage, setCurrentPage] = useState(1);
+
+  // Fetch history data
+  useEffect(() => {
+    if (user?.id) {
+      fetchHistory();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, user?.role, user?.departmentId]);
+
+  const fetchHistory = async () => {
+    if (!user?.id) return;
+    
+    try {
+      setIsLoading(true);
+      const params = new URLSearchParams({
+        userId: user.id,
+        userRole: user.role,
+      });
+      if (user.departmentId) {
+        params.append('departmentId', user.departmentId);
+      }
+      
+      const response = await fetch(`/api/history?${params.toString()}`);
+      const data = await response.json();
+      setTimeOffRequests(data.requests || []);
+    } catch (error) {
+      console.error('Error fetching history:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const filteredData = timeOffRequests.filter(item => {
     const matchesSearch = item.user.toLowerCase().includes(searchQuery.toLowerCase()) || 
@@ -98,7 +130,12 @@ export default function HistoryPage() {
 
         {/* Table */}
         <div className="flex-1 overflow-x-auto">
-          <table className="w-full text-left border-collapse">
+          {isLoading ? (
+            <div className="flex items-center justify-center h-64">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand"></div>
+            </div>
+          ) : (
+            <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-100 text-xs uppercase tracking-wider text-gray-500 font-bold">
                 <th className="p-4 pl-6 w-1/6">Type</th>
@@ -141,6 +178,7 @@ export default function HistoryPage() {
               )}
             </tbody>
           </table>
+          )}
         </div>
 
         {/* Footer */}

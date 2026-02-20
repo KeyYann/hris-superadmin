@@ -1,15 +1,15 @@
 'use client';
 
-import { useState } from 'react';
-import { useNotifications } from '@/context/NotificationContext';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { 
-  Trash2, RotateCcw, Search, User, Building, FileText, AlertTriangle, Shield, Filter, ChevronDown, Calendar as CalendarIcon
+  Trash2, RotateCcw, Search, User, Building, FileText, AlertTriangle, Shield, Filter, Calendar as CalendarIcon, Loader2
 } from 'lucide-react';
 
 export default function TrashPage() {
-  const { trash, restoreItem, permanentlyDeleteItem } = useNotifications();
   const { hasRole } = useAuth();
+  const [trash, setTrash] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterType, setFilterType] = useState('All');
 
@@ -18,6 +18,24 @@ export default function TrashPage() {
 
   // Check if user is Super Admin
   const isSuperAdmin = hasRole(['Super Admin']);
+
+  // Fetch trash items
+  useEffect(() => {
+    fetchTrash();
+  }, []);
+
+  const fetchTrash = async () => {
+    try {
+      setIsLoading(true);
+      const response = await fetch('/api/trash');
+      const data = await response.json();
+      setTrash(data.trash || []);
+    } catch (error) {
+      console.error('Error fetching trash:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   // --- FILTER LOGIC ---
   const filteredTrash = trash.filter(item => {
@@ -63,14 +81,37 @@ export default function TrashPage() {
     return '';
   };
 
-  const handleRestore = (id: string) => {
-    restoreItem(id);
+  const handleRestore = async (id: string) => {
+    try {
+      const response = await fetch('/api/trash', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ trashId: id })
+      });
+
+      if (response.ok) {
+        await fetchTrash(); // Refresh trash list
+      }
+    } catch (error) {
+      console.error('Error restoring item:', error);
+    }
   };
 
-  const handlePermanentDelete = () => {
+  const handlePermanentDelete = async () => {
     if (deleteConfirmId) {
-      permanentlyDeleteItem(deleteConfirmId);
-      setDeleteConfirmId(null);
+      try {
+        const response = await fetch(`/api/trash?id=${deleteConfirmId}`, {
+          method: 'DELETE'
+        });
+
+        if (response.ok) {
+          await fetchTrash(); // Refresh trash list
+        }
+      } catch (error) {
+        console.error('Error deleting item:', error);
+      } finally {
+        setDeleteConfirmId(null);
+      }
     }
   };
 
@@ -124,7 +165,12 @@ export default function TrashPage() {
 
         {/* LIST */}
         <div className="flex-1 overflow-y-auto p-4">
-          {filteredTrash.length === 0 ? (
+          {isLoading ? (
+            <div className="h-full flex flex-col items-center justify-center text-gray-400">
+              <Loader2 size={64} className="mb-4 opacity-20 animate-spin" />
+              <p>Loading trash...</p>
+            </div>
+          ) : filteredTrash.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center text-gray-400">
                <Trash2 size={64} className="mb-4 opacity-20" />
                <p>Trash is empty.</p>

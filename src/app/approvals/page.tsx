@@ -1,17 +1,19 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useNotifications } from '@/context/NotificationContext';
 import { 
   Search, Filter, CheckCircle, XCircle, Clock, 
   Calendar, Briefcase, FileText, ChevronDown, X, Eye, ArrowUpDown, RefreshCw
 } from 'lucide-react';
+import { useAuth } from '@/context/AuthContext';
 
 type CategoryType = 'all' | 'leave' | 'overtime' | 'official-business' | 'offset';
 type StatusType = 'all' | 'Pending' | 'Approved' | 'Declined';
 
 export default function ApprovalsPage() {
-  const { timeOffRequests, updateTimeOffStatus } = useNotifications();
+  const { user } = useAuth();
+  const [allRequests, setAllRequests] = useState<any[]>([]);
+  const [isLoadingData, setIsLoadingData] = useState(true);
   
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<CategoryType>('all');
@@ -22,33 +24,44 @@ export default function ApprovalsPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const ITEMS_PER_PAGE = 6;
 
-  // Mock data for overtime and official business (you can expand this later)
-  const overtimeRequests = [
-    { id: 'ot1', user: 'Roger Jr. Dumaguit', avatar: 'RD', role: 'Developer', submitted: '2026-02-10', date: '2026-02-15', startTime: '18:00', endTime: '22:00', hours: '4', status: 'Pending', reason: 'Project deadline', approvalType: 'pre' },
-    { id: 'ot2', user: 'Mike Johnson', avatar: 'MJ', role: 'Developer', submitted: '2026-02-08', date: '2026-02-12', startTime: '17:00', endTime: '20:00', hours: '3', status: 'Approved', reason: 'Bug fixes', approvalType: 'post' },
-    { id: 'ot3', user: 'Emily White', avatar: 'EW', role: 'Developer', submitted: '2026-02-11', date: '2026-02-16', startTime: '19:00', endTime: '23:00', hours: '4', status: 'Pending', reason: 'Feature development', approvalType: 'pre' },
-    { id: 'ot4', user: 'Christopher Martinez', avatar: 'CM', role: 'Developer', submitted: '2026-02-09', date: '2026-02-13', startTime: '18:00', endTime: '21:00', hours: '3', status: 'Approved', reason: 'Production issue', approvalType: 'post' },
-  ];
+  // Fetch data from API
+  useEffect(() => {
+    if (user?.id) {
+      fetchApprovals();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, user?.role, user?.departmentId]);
 
-  const officialBusinessRequests = [
-    { id: 'ob1', user: 'Jomel Dela Cruz', avatar: 'JD', role: 'Designer', submitted: '2026-02-09', startDate: '2026-02-20', endDate: '2026-02-22', destination: 'Client Office - Cebu', status: 'Pending', purpose: 'Client presentation and workshop' },
-    { id: 'ob2', user: 'David Brown', avatar: 'DB', role: 'QA', submitted: '2026-02-07', startDate: '2026-02-14', endDate: '2026-02-16', destination: 'BGC Training Center', status: 'Approved', purpose: 'QA certification training' },
-    { id: 'ob3', user: 'Alice Chen', avatar: 'AC', role: 'Admin Managers', submitted: '2026-02-11', startDate: '2026-02-24', endDate: '2026-02-25', destination: 'Makati Head Office', status: 'Pending', purpose: 'Management conference' },
-  ];
-
-  const offsetRequests = [
-    { id: 'off1', user: 'Rommel Manalo', avatar: 'RM', role: 'Developer', submitted: '2026-02-12', excessHours: '11', appliedLeaveDate: '2026-02-18', appliedLeaveHours: '9', status: 'Pending', justification: 'ETPI Incident Troubleshooting' },
-    { id: 'off2', user: 'Patricia Miller', avatar: 'PM', role: 'Developer', submitted: '2026-02-10', excessHours: '8', appliedLeaveDate: '2026-02-20', appliedLeaveHours: '8', status: 'Approved', justification: 'Weekend deployment' },
-    { id: 'off3', user: 'Robert Taylor', avatar: 'RT', role: 'Developer', submitted: '2026-02-11', excessHours: '6', appliedLeaveDate: '2026-02-22', appliedLeaveHours: '6', status: 'Pending', justification: 'Emergency maintenance' },
-  ];
-
-  // Combine all requests
-  const allRequests = [
-    ...timeOffRequests.map(r => ({ ...r, category: 'leave' as const })),
-    ...overtimeRequests.map(r => ({ ...r, category: 'overtime' as const })),
-    ...officialBusinessRequests.map(r => ({ ...r, category: 'official-business' as const })),
-    ...offsetRequests.map(r => ({ ...r, category: 'offset' as const })),
-  ];
+  const fetchApprovals = async () => {
+    if (!user?.id) return;
+    
+    try {
+      setIsLoadingData(true);
+      const params = new URLSearchParams({
+        userId: user.id,
+        userRole: user.role,
+      });
+      if (user.departmentId) {
+        params.append('departmentId', user.departmentId);
+      }
+      
+      const response = await fetch(`/api/approvals?${params.toString()}`);
+      const data = await response.json();
+      
+      const combined = [
+        ...data.timeOff,
+        ...data.overtime,
+        ...data.officialBusiness,
+        ...data.offset
+      ];
+      
+      setAllRequests(combined);
+    } catch (error) {
+      console.error('Error fetching approvals:', error);
+    } finally {
+      setIsLoadingData(false);
+    }
+  };
 
   // Filter logic
   const filteredRequests = allRequests.filter(req => {
@@ -79,18 +92,38 @@ export default function ApprovalsPage() {
     setCurrentPage(1);
   }, [searchQuery, selectedCategory, selectedStatus, sortOrder]);
 
-  const handleApprove = (id: string, category: string) => {
-    if (category === 'leave') {
-      updateTimeOffStatus(id, 'Approved');
+  const handleApprove = async (id: string, category: string) => {
+    try {
+      const response = await fetch('/api/approvals/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, category, status: 'Approved' })
+      });
+      
+      if (response.ok) {
+        // Refresh data
+        await fetchApprovals();
+      }
+    } catch (error) {
+      console.error('Error approving request:', error);
     }
-    // Add logic for overtime and official business later
   };
 
-  const handleDecline = (id: string, category: string) => {
-    if (category === 'leave') {
-      updateTimeOffStatus(id, 'Declined');
+  const handleDecline = async (id: string, category: string) => {
+    try {
+      const response = await fetch('/api/approvals/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, category, status: 'Declined' })
+      });
+      
+      if (response.ok) {
+        // Refresh data
+        await fetchApprovals();
+      }
+    } catch (error) {
+      console.error('Error declining request:', error);
     }
-    // Add logic for overtime and official business later
   };
 
   // ESC key handler
@@ -298,7 +331,12 @@ export default function ApprovalsPage() {
 
         {/* TABLE */}
         <div className="flex-1 overflow-x-auto">
-          <table className="w-full text-left border-collapse">
+          {isLoadingData ? (
+            <div className="flex items-center justify-center h-64">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand"></div>
+            </div>
+          ) : (
+            <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-gray-50 border-b border-gray-100 text-xs uppercase tracking-wider text-gray-500 font-bold">
                 <th className="p-4 pl-6">Employee</th>
@@ -414,21 +452,21 @@ export default function ApprovalsPage() {
                       <div className="flex items-center justify-end gap-2">
                         <button 
                           onClick={() => setViewingRequest(request)}
-                          className="p-2 bg-white border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 hover:border-gray-300 transition-all shadow-sm active:scale-95"
+                          className="p-2 bg-white border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 hover:border-gray-300 transition-all shadow-sm active:scale-95 cursor-pointer"
                           title="View Details"
                         >
                           <Eye size={16} />
                         </button>
                         <button 
                           onClick={() => handleApprove(request.id, request.category)}
-                          className="p-2 bg-white border border-gray-200 text-green-600 rounded-lg hover:bg-green-50 hover:border-green-200 transition-all shadow-sm active:scale-95"
+                          className="p-2 bg-white border border-gray-200 text-green-600 rounded-lg hover:bg-green-50 hover:border-green-200 transition-all shadow-sm active:scale-95 cursor-pointer"
                           title="Approve"
                         >
                           <CheckCircle size={16} />
                         </button>
                         <button 
                           onClick={() => handleDecline(request.id, request.category)}
-                          className="p-2 bg-white border border-gray-200 text-red-600 rounded-lg hover:bg-red-50 hover:border-red-200 transition-all shadow-sm active:scale-95"
+                          className="p-2 bg-white border border-gray-200 text-red-600 rounded-lg hover:bg-red-50 hover:border-red-200 transition-all shadow-sm active:scale-95 cursor-pointer"
                           title="Decline"
                         >
                           <XCircle size={16} />
@@ -437,7 +475,7 @@ export default function ApprovalsPage() {
                     ) : (
                       <button 
                         onClick={() => setViewingRequest(request)}
-                        className="p-2 bg-white border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 hover:border-gray-300 transition-all shadow-sm active:scale-95"
+                        className="p-2 bg-white border border-gray-200 text-gray-600 rounded-lg hover:bg-gray-50 hover:border-gray-300 transition-all shadow-sm active:scale-95 cursor-pointer"
                         title="View Details"
                       >
                         <Eye size={16} />
@@ -456,6 +494,7 @@ export default function ApprovalsPage() {
               )}
             </tbody>
           </table>
+          )}
         </div>
 
         {/* PAGINATION */}
@@ -734,7 +773,7 @@ export default function ApprovalsPage() {
                     handleDecline(viewingRequest.id, viewingRequest.category);
                     setViewingRequest(null);
                   }}
-                  className="flex-1 py-3.5 bg-white border-2 border-red-200 text-red-600 font-bold rounded-xl hover:bg-red-50 hover:border-red-300 transition-all flex items-center justify-center gap-2"
+                  className="flex-1 py-3.5 bg-white border-2 border-red-200 text-red-600 font-bold rounded-xl hover:bg-red-50 hover:border-red-300 transition-all flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <XCircle size={18} />
                   Decline
@@ -744,7 +783,7 @@ export default function ApprovalsPage() {
                     handleApprove(viewingRequest.id, viewingRequest.category);
                     setViewingRequest(null);
                   }}
-                  className="flex-1 py-3.5 bg-gradient-to-r from-green-600 to-green-700 text-white font-bold rounded-xl hover:from-green-700 hover:to-green-800 shadow-lg shadow-green-200 transition-all flex items-center justify-center gap-2"
+                  className="flex-1 py-3.5 bg-gradient-to-r from-green-600 to-green-700 text-white font-bold rounded-xl hover:from-green-700 hover:to-green-800 shadow-lg shadow-green-200 transition-all flex items-center justify-center gap-2 cursor-pointer"
                 >
                   <CheckCircle size={18} />
                   Approve Request

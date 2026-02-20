@@ -1,19 +1,53 @@
 'use client';
 
-import { useState } from 'react';
-import { useNotifications } from '@/context/NotificationContext';
+import { useState, useEffect } from 'react';
 import { 
   format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, 
   eachDayOfInterval, isSameMonth, isSameDay, addMonths, subMonths, 
   addDays, parseISO, getYear, getMonth, setMonth, setYear,
   addWeeks, subWeeks, subDays
 } from 'date-fns';
-import { ChevronLeft, ChevronRight, ChevronDown, Calendar as CalIcon } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ChevronDown, Calendar as CalIcon, Loader2 } from 'lucide-react';
+import { useAuth } from '@/context/AuthContext';
 
 export default function TimeOffCalendarPage() {
-  const { timeOffRequests } = useNotifications();
+  const { user } = useAuth();
+  const [timeOffRequests, setTimeOffRequests] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [view, setView] = useState<'Month' | 'Week' | 'Day'>('Month');
+
+  // Fetch time off requests
+  useEffect(() => {
+    if (user?.id) {
+      fetchTimeOffRequests();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, user?.role, user?.departmentId]);
+
+  const fetchTimeOffRequests = async () => {
+    if (!user?.id) return;
+    
+    try {
+      setLoading(true);
+      const params = new URLSearchParams({
+        userId: user.id,
+        userRole: user.role,
+      });
+      if (user.departmentId) {
+        params.append('departmentId', user.departmentId);
+      }
+      
+      const response = await fetch(`/api/time-off?${params.toString()}`);
+      const data = await response.json();
+      setTimeOffRequests(data.requests || []);
+    } catch (error) {
+      console.error('Error fetching time off requests:', error);
+      setTimeOffRequests([]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // --- LOGIC: PROCESS EVENTS ---
   const getLeaveEvents = () => {
@@ -22,19 +56,38 @@ export default function TimeOffCalendarPage() {
 
     approvedLeaves.forEach(request => {
       const startDate = parseISO(request.leaveDate);
-      const duration = parseInt(request.duration.split(' ')[0]) || 1; 
+      // Handle duration - it could be a number or a string like "2 Days"
+      const durationValue = typeof request.duration === 'number' 
+        ? request.duration 
+        : parseFloat(request.duration?.toString().split(' ')[0] || '1');
+      
+      const duration = isNaN(durationValue) ? 1 : durationValue;
 
-      for (let i = 0; i < duration; i++) {
-        const currentLeaveDay = addDays(startDate, i);
+      // For half-day leaves, just show on the single day
+      if (request.isHalfDay || duration < 1) {
         events.push({
-          id: `${request.id}-${i}`,
-          date: currentLeaveDay,
+          id: `${request.id}-0`,
+          date: startDate,
           user: request.user,
           type: request.type,
           avatar: request.avatar,
           isHalfDay: request.isHalfDay,
-          role: request.role
+          role: request.role || 'Employee'
         });
+      } else {
+        // For multi-day leaves, create an event for each day
+        for (let i = 0; i < Math.floor(duration); i++) {
+          const currentLeaveDay = addDays(startDate, i);
+          events.push({
+            id: `${request.id}-${i}`,
+            date: currentLeaveDay,
+            user: request.user,
+            type: request.type,
+            avatar: request.avatar,
+            isHalfDay: false,
+            role: request.role || 'Employee'
+          });
+        }
       }
     });
     return events;
@@ -189,7 +242,12 @@ export default function TimeOffCalendarPage() {
           flex-1 overflow-y-auto min-h-0
           ${view === 'Day' ? 'p-6' : 'grid grid-cols-7'}
         `}>
-          {daysToRender.map((day) => {
+          {loading ? (
+            <div className="col-span-7 flex items-center justify-center h-64">
+              <Loader2 className="animate-spin text-gray-300" size={32} />
+            </div>
+          ) : (
+            daysToRender.map((day) => {
             const dayEvents = getEventsForDay(day);
             const isToday = isSameDay(day, new Date());
             const isCurrentMonth = isSameMonth(day, currentDate);
@@ -260,7 +318,8 @@ export default function TimeOffCalendarPage() {
                 </div>
               </div>
             );
-          })}
+          })
+          )}
         </div>
       </div>
     </div>

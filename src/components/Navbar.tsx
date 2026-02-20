@@ -4,12 +4,11 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname, useRouter } from 'next/navigation';
-import { useNotifications } from '@/context/NotificationContext';
 import { useAuth } from '@/context/AuthContext';
 import { 
   LayoutDashboard, Settings, LogOut, ChevronLeft, ChevronRight, ChevronDown, 
   CalendarDays, Calendar, Users, UserCog, Bell, Activity, Trash2, User,
-  List, CreditCard, Network, Shield, X, CheckCircle, FileText, RefreshCw
+  List, CreditCard, Network, Shield, X, CheckCircle
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -21,10 +20,88 @@ interface NavbarProps {
 export default function Navbar({ isExpanded, setIsExpanded, onCloseMobile }: NavbarProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const { logout, hasRole } = useAuth();
+  const { logout, hasRole, user } = useAuth();
   
-  // Get counts from context
-  const { unreadCount, pendingTimeOffCount } = useNotifications(); 
+  // Get notification count from API
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [pendingTimeOffCount, setPendingTimeOffCount] = useState(0);
+
+  useEffect(() => {
+    if (user?.id) {
+      fetchNotificationCount();
+      fetchPendingCount();
+      
+      // Refresh counts every 30 seconds
+      const interval = setInterval(() => {
+        fetchNotificationCount();
+        fetchPendingCount();
+      }, 30000);
+      
+      return () => clearInterval(interval);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, user?.role, user?.departmentId]);
+
+  const fetchNotificationCount = async () => {
+    if (!user?.id) return;
+    try {
+      const params = new URLSearchParams({
+        userId: user.id,
+        userRole: user.role,
+      });
+      if (user.departmentId) {
+        params.append('departmentId', user.departmentId);
+      }
+      
+      const response = await fetch(`/api/notifications?${params.toString()}`);
+      const data = await response.json();
+      setUnreadCount(data.unreadCount || 0);
+    } catch (error) {
+      console.error('Error fetching notification count:', error);
+    }
+  };
+
+  const fetchPendingCount = async () => {
+    if (!user?.id) return;
+    try {
+      const params = new URLSearchParams({
+        userId: user.id,
+        userRole: user.role,
+      });
+      if (user.departmentId) {
+        params.append('departmentId', user.departmentId);
+      }
+      
+      const response = await fetch(`/api/approvals?${params.toString()}`);
+      
+      if (!response.ok) {
+        // Silently fail for non-admin users or when API is not available
+        setPendingTimeOffCount(0);
+        return;
+      }
+      
+      const data = await response.json();
+      
+      // Check if data has the expected structure
+      if (!data || typeof data !== 'object') {
+        setPendingTimeOffCount(0);
+        return;
+      }
+      
+      // Safely handle missing properties
+      const allRequests = [
+        ...(data.timeOff || []),
+        ...(data.overtime || []),
+        ...(data.officialBusiness || []),
+        ...(data.offset || [])
+      ];
+      const pending = allRequests.filter((r: any) => r.status === 'Pending').length;
+      setPendingTimeOffCount(pending);
+    } catch (error) {
+      // Silently fail - this is not critical functionality
+      setPendingTimeOffCount(0);
+    }
+  }; 
   
   const [openDropdowns, setOpenDropdowns] = useState<Record<string, boolean>>({
     timeOff: false,

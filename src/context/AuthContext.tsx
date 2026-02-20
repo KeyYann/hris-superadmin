@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useState, ReactNode, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { supabase } from '@/lib/supabase';
 
 interface AuthUser {
   id: string;
@@ -21,26 +22,8 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Mock user credentials - In production, this would be handled by a backend
-const MOCK_CREDENTIALS = [
-  // Super Admins
-  { 
-    email: 'sarah.s@abbeconsult.com', 
-    password: 'admin123',
-    user: { id: 'admin1', name: 'Sarah Smith', email: 'sarah.s@abbeconsult.com', role: 'Super Admin', avatar: 'SS' }
-  },
-  { 
-    email: 'alex.p@abbe.com', 
-    password: 'admin123',
-    user: { id: 'admin2', name: 'Alexander Pierce', email: 'alex.p@abbe.com', role: 'Super Admin', avatar: 'AP' }
-  },
-  // Admin (Generic)
-  { 
-    email: 'victoria.h@abbeconsult.com', 
-    password: 'admin123',
-    user: { id: 'admin3', name: 'Victoria Hand', email: 'victoria.h@abbeconsult.com', role: 'Admin', avatar: 'VH' }
-  },
-];
+// Allowed email domains
+const ALLOWED_DOMAINS = ['abbeconsult.com', 'abbe.com', 'bequik.com'];
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
@@ -48,33 +31,96 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   // Check for existing session on mount
   useEffect(() => {
-    const storedUser = localStorage.getItem('authUser');
-    if (storedUser) {
-      setUser(JSON.parse(storedUser));
-    }
-    setIsLoading(false);
+    checkSession();
   }, []);
 
-  const login = async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 500));
-
-    const credential = MOCK_CREDENTIALS.find(
-      c => c.email.toLowerCase() === email.toLowerCase() && c.password === password
-    );
-
-    if (credential) {
-      setUser(credential.user);
-      localStorage.setItem('authUser', JSON.stringify(credential.user));
-      return { success: true };
+  const checkSession = async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (session?.user) {
+        await loadUserData(session.user.id);
+      }
+    } catch (error) {
+      console.error('Session check error:', error);
+    } finally {
+      setIsLoading(false);
     }
-
-    return { success: false, error: 'Invalid email or password' };
   };
 
-  const logout = () => {
-    setUser(null);
-    localStorage.removeItem('authUser');
+  const loadUserData = async (userId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select(`
+          id,
+          name,
+          email,
+          avatar,
+          roles (name)
+        `)
+        .eq('id', userId)
+        .single();
+
+      if (error) throw error;
+
+      if (data) {
+        setUser({
+          id: data.id,
+          name: data.name,
+          email: data.email,
+          role: data.roles?.name || 'Employee',
+          avatar: data.avatar
+        });
+      }
+    } catch (error) {
+      console.error('Error loading user data:', error);
+    }
+  };
+
+  const login = async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
+    try {
+      // Validate email domain
+      const emailDomain = email.split('@')[1]?.toLowerCase();
+      if (!emailDomain || !ALLOWED_DOMAINS.includes(emailDomain)) {
+        return { 
+          success: false, 
+          error: 'Email must be from abbeconsult.com, abbe.com, or bequik.com' 
+        };
+      }
+
+      // Attempt login with Supabase
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: email.toLowerCase(),
+        password
+      });
+
+      if (error) {
+        return { 
+          success: false, 
+          error: 'Invalid email or password' 
+        };
+      }
+
+      if (data.user) {
+        await loadUserData(data.user.id);
+        return { success: true };
+      }
+
+      return { success: false, error: 'Login failed' };
+    } catch (error) {
+      console.error('Login error:', error);
+      return { success: false, error: 'An error occurred during login' };
+    }
+  };
+
+  const logout = async () => {
+    try {
+      await supabase.auth.signOut();
+      setUser(null);
+    } catch (error) {
+      console.error('Logout error:', error);
+    }
   };
 
   const hasRole = (roles: string[]): boolean => {

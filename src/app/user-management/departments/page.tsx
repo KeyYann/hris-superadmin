@@ -1,15 +1,14 @@
 'use client';
 
-import { useState } from 'react';
-import { useNotifications } from '@/context/NotificationContext'; 
+import { useState, useEffect } from 'react';
 import { 
   Search, Plus, Pencil, Trash2, Building, 
   Users, X, AlertTriangle
 } from 'lucide-react';
 
 export default function DepartmentsPage() {
-  // 1. Consume users alongside departments to calculate counts
-  const { departments, users, addDepartment, updateDepartment, deleteDepartment } = useNotifications();
+  const [departments, setDepartments] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   
   const [searchQuery, setSearchQuery] = useState('');
   
@@ -20,10 +19,24 @@ export default function DepartmentsPage() {
 
   // Form State
   const [formData, setFormData] = useState({ name: '', status: 'Active', description: '' });
+  const [deleteError, setDeleteError] = useState('');
 
-  // --- HELPER: Calculate Member Count Dynamically ---
-  const getMemberCount = (departmentName: string) => {
-    return users.filter(user => user.department === departmentName).length;
+  // Fetch departments
+  useEffect(() => {
+    fetchDepartments();
+  }, []);
+
+  const fetchDepartments = async () => {
+    try {
+      setIsLoading(true);
+      const response = await fetch('/api/departments');
+      const data = await response.json();
+      setDepartments(data.departments || []);
+    } catch (error) {
+      console.error('Error fetching departments:', error);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   // --- ACTIONS ---
@@ -35,31 +48,67 @@ export default function DepartmentsPage() {
 
   const openEditModal = (dept: any) => {
     setCurrentDepartment(dept);
-    setFormData({ name: dept.name, status: dept.status, description: dept.description });
+    setFormData({ name: dept.name, status: dept.status, description: dept.description || '' });
     setIsModalOpen(true);
   };
 
   const openDeleteModal = (dept: any) => {
     setCurrentDepartment(dept);
+    setDeleteError('');
     setIsDeleteModalOpen(true);
   };
 
-  const handleSave = () => {
-    if (currentDepartment) {
-      updateDepartment({ 
-        ...currentDepartment, 
-        ...formData 
-      });
-    } else {
-      addDepartment(formData);
+  const handleSave = async () => {
+    try {
+      if (currentDepartment) {
+        // Update existing department
+        const response = await fetch(`/api/departments/${currentDepartment.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(formData)
+        });
+        
+        if (response.ok) {
+          await fetchDepartments();
+        }
+      } else {
+        // Create new department
+        const response = await fetch('/api/departments', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(formData)
+        });
+        
+        if (response.ok) {
+          await fetchDepartments();
+        }
+      }
+      setIsModalOpen(false);
+    } catch (error) {
+      console.error('Error saving department:', error);
     }
-    setIsModalOpen(false);
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (currentDepartment) {
-      deleteDepartment(currentDepartment.id);
-      setIsDeleteModalOpen(false);
+      try {
+        const response = await fetch(`/api/departments/${currentDepartment.id}`, {
+          method: 'DELETE'
+        });
+        
+        const data = await response.json();
+        
+        if (!response.ok) {
+          setDeleteError(data.error || 'Failed to delete department');
+          return;
+        }
+        
+        await fetchDepartments();
+        setIsDeleteModalOpen(false);
+      } catch (error) {
+        console.error('Error deleting department:', error);
+        setDeleteError('Failed to delete department');
+      }
     }
   };
 
@@ -127,17 +176,25 @@ export default function DepartmentsPage() {
 
         {/* Table */}
         <div className="flex-1 overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-gray-50 border-b border-gray-100 text-xs uppercase tracking-wider text-gray-500 font-bold">
-                <th className="p-4 pl-6">Department Name</th>
-                <th className="p-4">Members</th>
-                <th className="p-4">Status</th>
-                <th className="p-4 text-right pr-6">Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {filteredDepartments.map((dept) => (
+          {isLoading ? (
+            <div className="flex items-center justify-center h-64">
+              <div className="flex flex-col items-center gap-3">
+                <div className="w-12 h-12 border-4 border-gray-200 border-t-brand rounded-full animate-spin"></div>
+                <p className="text-sm text-gray-500 font-medium">Loading departments...</p>
+              </div>
+            </div>
+          ) : (
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-gray-50 border-b border-gray-100 text-xs uppercase tracking-wider text-gray-500 font-bold">
+                  <th className="p-4 pl-6">Department Name</th>
+                  <th className="p-4">Members</th>
+                  <th className="p-4">Status</th>
+                  <th className="p-4 text-right pr-6">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {filteredDepartments.map((dept) => (
                 <tr key={dept.id} className="hover:bg-gray-50/50 transition-colors group">
                   <td className="p-4 pl-6">
                     <div className="flex items-center gap-3">
@@ -153,8 +210,7 @@ export default function DepartmentsPage() {
                   <td className="p-4">
                     <div className="flex items-center gap-1.5 text-sm text-gray-600">
                       <Users size={16} className="text-gray-400" />
-                      {/* DYNAMIC MEMBER COUNT */}
-                      <span className="font-semibold">{getMemberCount(dept.name)}</span>
+                      <span className="font-semibold">{dept.memberCount || 0}</span>
                     </div>
                   </td>
                   <td className="p-4">
@@ -167,14 +223,14 @@ export default function DepartmentsPage() {
                     <div className="flex items-center justify-end gap-2">
                         <button 
                           onClick={() => openEditModal(dept)}
-                          className="p-2 bg-white border border-gray-200 text-gray-500 rounded-lg hover:bg-orange-50 hover:text-brand hover:border-orange-200 transition-all shadow-sm active:scale-95"
+                          className="p-2 bg-white border border-gray-200 text-gray-500 rounded-lg hover:bg-orange-50 hover:text-brand hover:border-orange-200 transition-all shadow-sm active:scale-95 cursor-pointer"
                           title="Edit"
                         >
                           <Pencil size={16} />
                         </button>
                         <button 
                           onClick={() => openDeleteModal(dept)}
-                          className="p-2 bg-white border border-gray-200 text-gray-500 rounded-lg hover:bg-red-50 hover:text-red-600 hover:border-red-100 transition-all shadow-sm active:scale-95"
+                          className="p-2 bg-white border border-gray-200 text-gray-500 rounded-lg hover:bg-red-50 hover:text-red-600 hover:border-red-100 transition-all shadow-sm active:scale-95 cursor-pointer"
                           title="Delete"
                         >
                           <Trash2 size={16} />
@@ -193,6 +249,7 @@ export default function DepartmentsPage() {
               )}
             </tbody>
           </table>
+          )}
         </div>
       </div>
 
@@ -258,6 +315,11 @@ export default function DepartmentsPage() {
                       <p className="text-sm text-gray-500 mt-1 px-4">
                         Are you sure you want to delete <strong>{currentDepartment?.name}</strong>? This action cannot be undone.
                       </p>
+                      {deleteError && (
+                        <div className="mt-3 p-3 bg-red-100 border border-red-200 rounded-lg">
+                          <p className="text-xs text-red-700 font-medium">{deleteError}</p>
+                        </div>
+                      )}
                   </div>
               </div>
               <div className="p-6 flex gap-3">

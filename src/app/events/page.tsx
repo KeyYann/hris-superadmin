@@ -7,10 +7,9 @@ import {
   setMonth, setYear, getYear, getMonth
 } from 'date-fns';
 import { ChevronLeft, ChevronRight, Plus, Loader2, Trash2, X, Calendar as CalendarIcon } from 'lucide-react';
-import { useNotifications } from '@/context/NotificationContext'; 
 
 export default function EventsPage() {
-  const { calendarEvents, addCalendarEvent, deleteCalendarEvent } = useNotifications(); 
+  const [calendarEvents, setCalendarEvents] = useState<any[]>([]);
   
   const [currentDate, setCurrentDate] = useState(new Date());
   const [mergedEvents, setMergedEvents] = useState<any[]>([]); 
@@ -22,6 +21,21 @@ export default function EventsPage() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   
   const [newEvent, setNewEvent] = useState({ title: '', date: '', description: '' });
+
+  // Fetch calendar events from Supabase
+  const fetchCalendarEvents = async () => {
+    try {
+      const response = await fetch('/api/events');
+      const data = await response.json();
+      setCalendarEvents(data.events || []);
+    } catch (error) {
+      console.error('Error fetching calendar events:', error);
+    }
+  };
+
+  useEffect(() => {
+    fetchCalendarEvents();
+  }, []);
 
   // --- 1. FETCH HOLIDAYS & MERGE ---
   useEffect(() => {
@@ -78,33 +92,52 @@ export default function EventsPage() {
     setSelectedDayEvents({ date: day, events });
   };
 
-  const handleAddEvent = (e: React.FormEvent) => {
+  const handleAddEvent = async (e: React.FormEvent) => {
     e.preventDefault();
-    addCalendarEvent({
-        title: newEvent.title,
-        date: newEvent.date,
-        description: newEvent.description,
-        type: 'personal' // Internally stored as personal, displayed generically
-    });
-    setIsAddModalOpen(false);
-    setNewEvent({ title: '', date: '', description: '' });
     
-    // Refresh day modal if open (Optimistic UI)
-    if (selectedDayEvents) {
-        setTimeout(() => {
-             const day = selectedDayEvents.date;
-             // Close modal to force refresh or re-fetch logic could go here
-             setSelectedDayEvents(null); 
-        }, 100);
+    try {
+      const response = await fetch('/api/events', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: newEvent.title,
+          date: newEvent.date,
+          description: newEvent.description,
+          type: 'event'
+        })
+      });
+
+      if (response.ok) {
+        await fetchCalendarEvents(); // Refresh events
+        setIsAddModalOpen(false);
+        setNewEvent({ title: '', date: '', description: '' });
+        
+        // Close day modal if open
+        if (selectedDayEvents) {
+          setSelectedDayEvents(null);
+        }
+      }
+    } catch (error) {
+      console.error('Error adding event:', error);
     }
   };
 
-  const handleDelete = () => {
-      if (deleteId) {
-          deleteCalendarEvent(deleteId);
+  const handleDelete = async () => {
+    if (deleteId) {
+      try {
+        const response = await fetch(`/api/events/${deleteId}`, {
+          method: 'DELETE'
+        });
+
+        if (response.ok) {
+          await fetchCalendarEvents(); // Refresh events
           setDeleteId(null);
-          setSelectedDayEvents(null); 
+          setSelectedDayEvents(null);
+        }
+      } catch (error) {
+        console.error('Error deleting event:', error);
       }
+    }
   };
 
   const currentYear = getYear(new Date());

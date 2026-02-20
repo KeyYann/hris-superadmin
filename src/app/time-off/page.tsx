@@ -1,18 +1,20 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useNotifications } from '@/context/NotificationContext'; 
 import { 
   Search, Filter, Download, ChevronDown, Eye, Trash2, 
   Calendar, Check, X, ArrowUpDown, MoreHorizontal, 
   Clock, Users, FileText, AlertTriangle, File, BriefcaseBusiness
 } from 'lucide-react';
 import { startOfWeek, endOfWeek, startOfMonth, endOfMonth, subMonths, startOfYear, endOfYear, isWithinInterval, parseISO, format, isSameDay, addDays } from 'date-fns';
+import { useAuth } from '@/context/AuthContext';
 
 const ITEMS_PER_PAGE = 10;
 
 export default function TimeOffPage() {
-  const { timeOffRequests, users, updateTimeOffStatus, deleteTimeOffRequest, pendingTimeOffCount } = useNotifications();
+  const { user } = useAuth();
+  const [timeOffRequests, setTimeOffRequests] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
@@ -27,9 +29,39 @@ export default function TimeOffPage() {
   const [viewRequest, setViewRequest] = useState<any | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
-  const getCompany = (userName: string) => {
-    const user = users.find(u => u.name === userName);
-    if (user && user.email.toLowerCase().includes('@bequik')) {
+  // Fetch time-off requests
+  useEffect(() => {
+    if (user?.id) {
+      fetchTimeOffRequests();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, user?.role, user?.departmentId]);
+
+  const fetchTimeOffRequests = async () => {
+    if (!user?.id) return;
+    
+    try {
+      setIsLoading(true);
+      const params = new URLSearchParams({
+        userId: user.id,
+        userRole: user.role,
+      });
+      if (user.departmentId) {
+        params.append('departmentId', user.departmentId);
+      }
+      
+      const response = await fetch(`/api/time-off?${params.toString()}`);
+      const data = await response.json();
+      setTimeOffRequests(data.requests || []);
+    } catch (error) {
+      console.error('Error fetching time-off requests:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const getCompany = (email: string) => {
+    if (email.toLowerCase().includes('@bequik')) {
       return 'BEQUIK';
     }
     return 'ABBE';
@@ -52,6 +84,9 @@ export default function TimeOffPage() {
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
   const paginatedData = filteredData.slice(startIndex, startIndex + ITEMS_PER_PAGE);
 
+  // Calculate pending count
+  const pendingTimeOffCount = timeOffRequests.filter(req => req.status === 'Pending').length;
+
   useEffect(() => {
     setCurrentPage(1);
   }, [searchQuery, statusFilter, typeFilter, sortOrder]);
@@ -64,8 +99,8 @@ export default function TimeOffPage() {
         if (req.status !== 'Approved') return false;
         
         const startDate = parseISO(req.leaveDate);
-        // Simple duration parsing (assuming format "X Days")
-        const duration = parseFloat(req.duration.split(' ')[0]) || 1;
+        // Duration is already a number from the API
+        const duration = typeof req.duration === 'number' ? req.duration : parseFloat(req.duration) || 1;
         
         // If duration is less than 1 (e.g., half day), treat as single day check
         if (duration < 1) {
@@ -135,16 +170,17 @@ export default function TimeOffPage() {
         return;
     }
 
-    const headers = ["ID", "User", "Company", "Role", "Leave Type", "Status", "Duration", "Is Half Day", "Leave Date", "Submitted Date", "Message"];
+    const headers = ["Request Number", "User", "Company", "Role", "Leave Type", "Status", "Duration", "Is Half Day", "Leave Date", "Submitted Date", "Message"];
     const csvRows = [headers.join(",")];
 
     for (const row of dataToExport) {
-        const company = getCompany(row.user);
+        const company = getCompany(row.email);
         const cleanMessage = row.message ? `"${row.message.replace(/"/g, '""')}"` : "";
         const cleanUser = `"${row.user}"`;
 
         const values = [
-            row.id, cleanUser, company, row.role, row.type, row.status, row.duration,
+            row.requestNumber || 'N/A', cleanUser, company, row.role, row.type, row.status, 
+            row.isHalfDay ? "Half Day" : `${row.duration} ${row.duration === 1 ? 'Day' : 'Days'}`,
             row.isHalfDay ? "Yes" : "No", row.leaveDate, row.submitted, cleanMessage
         ];
         csvRows.push(values.join(","));
@@ -162,17 +198,41 @@ export default function TimeOffPage() {
     document.body.removeChild(link);
   };
 
-  const handleStatusChange = (id: string, newStatus: string) => {
-    updateTimeOffStatus(id, newStatus);
+  const handleStatusChange = async (id: string, newStatus: string) => {
+    try {
+      const response = await fetch(`/api/time-off?id=${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus })
+      });
+
+      if (response.ok) {
+        await fetchTimeOffRequests(); // Refresh data
+      }
+    } catch (error) {
+      console.error('Error updating status:', error);
+    }
+
     if (viewRequest && viewRequest.id === id) {
       setViewRequest(null);
     }
   };
 
-  const confirmDelete = () => {
+  const confirmDelete = async () => {
     if (deleteId) {
-      deleteTimeOffRequest(deleteId); 
-      setDeleteId(null);
+      try {
+        const response = await fetch(`/api/time-off?id=${deleteId}`, {
+          method: 'DELETE'
+        });
+
+        if (response.ok) {
+          await fetchTimeOffRequests(); // Refresh data
+        }
+      } catch (error) {
+        console.error('Error deleting request:', error);
+      } finally {
+        setDeleteId(null);
+      }
     }
   };
 
@@ -300,7 +360,7 @@ export default function TimeOffPage() {
           <table className="w-full text-left border-collapse relative">
             <thead className="sticky top-0 z-10 shadow-sm">
               <tr className="bg-gray-50 border-b border-gray-100 text-xs uppercase tracking-wider text-gray-500 font-bold">
-                <th className="p-4 bg-gray-50 pl-6">ID</th>
+                <th className="p-4 bg-gray-50 pl-6">Request #</th>
                 <th className="p-4 bg-gray-50">User</th>
                 <th className="p-4 bg-gray-50">Company</th>
                 <th className="p-4 bg-gray-50">Submitted</th>
@@ -312,9 +372,21 @@ export default function TimeOffPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {paginatedData.map((row) => (
+              {isLoading ? (
+                <tr>
+                  <td colSpan={9} className="p-12 text-center">
+                    <div className="flex flex-col items-center gap-3">
+                      <div className="w-12 h-12 border-4 border-gray-200 border-t-brand rounded-full animate-spin"></div>
+                      <p className="text-sm text-gray-500 font-medium">Loading requests...</p>
+                    </div>
+                  </td>
+                </tr>
+              ) : paginatedData.length === 0 ? (
+                <tr><td colSpan={9} className="p-8 text-center text-gray-400">No requests found.</td></tr>
+              ) : (
+                paginatedData.map((row) => (
                 <tr key={row.id} className="hover:bg-gray-50/50 transition-colors group">
-                  <td className="p-4 pl-6 text-sm font-medium text-gray-500">#{row.id}</td>
+                  <td className="p-4 pl-6 text-sm font-medium text-gray-600">{row.requestNumber}</td>
                   <td className="p-4">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center text-xs font-bold text-gray-600">{row.avatar}</div>
@@ -325,7 +397,7 @@ export default function TimeOffPage() {
                   <td className="p-4">
                     <div className="flex items-center gap-2 text-sm text-gray-700 font-medium">
                         <BriefcaseBusiness size={14} className="text-gray-400"/>
-                        {getCompany(row.user)}
+                        {getCompany(row.email)}
                     </div>
                   </td>
 
@@ -335,7 +407,7 @@ export default function TimeOffPage() {
                   
                   <td className="p-4">
                     <span className="text-sm text-gray-700 font-medium">
-                      {row.isHalfDay ? "Half Day" : row.duration}
+                      {row.isHalfDay ? "Half Day" : `${row.duration} ${row.duration === 1 ? 'Day' : 'Days'}`}
                     </span>
                   </td>
 
@@ -347,9 +419,7 @@ export default function TimeOffPage() {
                     </div>
                   </td>
                 </tr>
-              ))}
-              {paginatedData.length === 0 && (
-                 <tr><td colSpan={9} className="p-8 text-center text-gray-400">No requests found.</td></tr>
+              ))
               )}
             </tbody>
           </table>
@@ -475,7 +545,7 @@ function LeaveDetailModal({ request, onClose, onApprove, onDecline }: any) {
 
            <div className="grid grid-cols-2 gap-4">
              <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100"><p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Leave Type</p><div className="flex items-center gap-2 text-gray-800 font-semibold"><File size={16} className="text-brand"/> {request.type}</div></div>
-             <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100"><p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Duration</p><div className="flex items-center gap-2 text-gray-800 font-semibold"><Clock size={16} className="text-brand"/> {request.isHalfDay ? "Half Day" : request.duration}</div></div>
+             <div className="p-4 bg-gray-50 rounded-2xl border border-gray-100"><p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">Duration</p><div className="flex items-center gap-2 text-gray-800 font-semibold"><Clock size={16} className="text-brand"/> {request.isHalfDay ? "Half Day" : `${request.duration} ${request.duration === 1 ? 'Day' : 'Days'}`}</div></div>
            </div>
            <div><p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Requested Date</p><div className="flex items-center gap-3 p-3 border border-gray-100 rounded-xl text-gray-700 bg-white shadow-sm"><Calendar size={18} className="text-gray-400"/><span className="font-medium">{request.leaveDate}</span></div></div>
            <div><p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Reason / Message</p><div className="p-4 bg-gray-50 rounded-2xl text-sm text-gray-600 leading-relaxed border border-gray-100 italic">"{request.message || "No message provided."}"</div></div>

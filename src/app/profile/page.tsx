@@ -1,11 +1,23 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useRef, useState, useEffect } from 'react';
+import { useAuth } from '@/context/AuthContext';
 import { User, Mail, Lock, Camera, Save, MapPin, Calendar, ShieldCheck } from 'lucide-react';
 
 export default function ProfilePage() {
+  const { user } = useAuth();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [profileImage, setProfileImage] = useState<string | null>(null);
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+
+  useEffect(() => {
+    if (user?.name) {
+      const nameParts = user.name.split(' ');
+      setFirstName(nameParts[0] || '');
+      setLastName(nameParts.slice(1).join(' ') || '');
+    }
+  }, [user]);
 
   // Trigger file input
   const handleCameraClick = () => {
@@ -53,7 +65,7 @@ export default function ProfilePage() {
                          {profileImage ? (
                            <img src={profileImage} alt="Profile" className="w-full h-full object-cover" />
                          ) : (
-                           "SS"
+                           user?.avatar || "UK"
                          )}
                     </div>
                     
@@ -75,19 +87,19 @@ export default function ProfilePage() {
 
                 {/* Name & Role */}
                 <div className="px-8 pb-8 w-full flex flex-col items-center">
-                    <h2 className="text-2xl font-bold text-gray-800">Sarah Smith</h2>
+                    <h2 className="text-2xl font-bold text-gray-800">{user?.name || 'Loading...'}</h2>
                     
                     {/* Role Badge */}
                     <div className="mt-2 mb-6">
                         <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-orange-50 text-[#EF9621] text-xs font-bold uppercase tracking-wider rounded-full border border-orange-100">
                             <ShieldCheck size={12} />
-                            Super Admin
+                            {user?.role || 'Admin'}
                         </span>
                     </div>
 
                     {/* Mini Stats */}
                     <div className="w-full flex flex-col gap-4 pt-6 border-t border-dashed border-gray-200">
-                        <InfoRow icon={<Mail size={14} />} text="sarah.s@abbeconsult.com" />
+                        <InfoRow icon={<Mail size={14} />} text={user?.email || 'Loading...'} />
                         <InfoRow icon={<MapPin size={14} />} text="Makati City, Philippines" />
                         <InfoRow icon={<Calendar size={14} />} text="Joined January 2023" />
                     </div>
@@ -111,11 +123,27 @@ export default function ProfilePage() {
                         <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider border-b border-gray-100 pb-2 mb-4">Basic Information</h4>
                         
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <InputGroup label="First Name" icon={<User size={18}/>} defaultValue="Sarah" />
-                            <InputGroup label="Last Name" icon={<User size={18}/>} defaultValue="Smith" />
+                            <InputGroup 
+                              label="First Name" 
+                              icon={<User size={18}/>} 
+                              value={firstName}
+                              onChange={(e: any) => setFirstName(e.target.value)}
+                            />
+                            <InputGroup 
+                              label="Last Name" 
+                              icon={<User size={18}/>} 
+                              value={lastName}
+                              onChange={(e: any) => setLastName(e.target.value)}
+                            />
                             
                             <div className="md:col-span-2">
-                                <InputGroup label="Email Address" icon={<Mail size={18}/>} type="email" defaultValue="sarah.s@abbeconsult.com" />
+                                <InputGroup 
+                                  label="Email Address" 
+                                  icon={<Mail size={18}/>} 
+                                  type="email" 
+                                  value={user?.email || ''}
+                                  disabled
+                                />
                             </div>
                         </div>
                     </div>
@@ -166,7 +194,7 @@ function InfoRow({ icon, text }: { icon: React.ReactNode, text: string }) {
     );
 }
 
-function InputGroup({ label, icon, type = "text", defaultValue, placeholder }: any) {
+function InputGroup({ label, icon, type = "text", value, onChange, placeholder, disabled }: any) {
     return (
         <div className="space-y-2">
             <label className="text-xs font-bold text-gray-500 uppercase tracking-wide ml-1">{label}</label>
@@ -176,9 +204,11 @@ function InputGroup({ label, icon, type = "text", defaultValue, placeholder }: a
                 </div>
                 <input
                     type={type}
-                    defaultValue={defaultValue}
+                    value={value}
+                    onChange={onChange}
                     placeholder={placeholder}
-                    className="w-full pl-11 pr-4 py-3 bg-white border border-gray-200 rounded-xl text-gray-800 text-sm font-medium focus:outline-none focus:ring-4 focus:ring-orange-500/10 focus:border-orange-500/50 transition-all placeholder:text-gray-300"
+                    disabled={disabled}
+                    className="w-full pl-11 pr-4 py-3 bg-white border border-gray-200 rounded-xl text-gray-800 text-sm font-medium focus:outline-none focus:ring-4 focus:ring-orange-500/10 focus:border-orange-500/50 transition-all placeholder:text-gray-300 disabled:bg-gray-50 disabled:text-gray-500 disabled:cursor-not-allowed"
                 />
             </div>
         </div>

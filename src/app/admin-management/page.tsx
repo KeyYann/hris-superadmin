@@ -1,17 +1,21 @@
 'use client';
 
 import { useState, useMemo, useEffect, useRef } from 'react';
-import { useNotifications } from '@/context/NotificationContext';
 import { 
   Search, Plus, Pencil, Trash2, Shield, 
-  X, AlertTriangle, UserCog, Mail, Lock, User, ChevronDown, Check, AlertCircle
+  X, AlertTriangle, UserCog, Mail, Lock, User, ChevronDown, Check, AlertCircle, Loader2
 } from 'lucide-react';
 
 export default function ManageAdminPage() {
-  const { users, updateUser, deleteUser, roles } = useNotifications();
   const [searchQuery, setSearchQuery] = useState('');
   
-  // States
+  // Data States
+  const [adminUsers, setAdminUsers] = useState<any[]>([]);
+  const [eligibleEmployees, setEligibleEmployees] = useState<any[]>([]);
+  const [adminRoleObjects, setAdminRoleObjects] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  
+  // Modal States
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [currentAdmin, setCurrentAdmin] = useState<any>(null); 
@@ -22,17 +26,41 @@ export default function ManageAdminPage() {
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Form & Error State
-  const initialFormState = { id: '', name: '', email: '', role: '', password: '', confirmPassword: '' };
+  const initialFormState = { id: '', name: '', email: '', role: '', roleId: '', password: '', confirmPassword: '' };
   const [formData, setFormData] = useState(initialFormState);
   const [errors, setErrors] = useState<{ role?: string; password?: string; user?: string }>({});
 
-  // --- 1. FILTER ROLES ---
-  const adminRoleObjects = roles.filter(r => r.name.includes('Admin'));
-  const adminRoleNames = adminRoleObjects.map(r => r.name);
+  // Fetch data on mount
+  useEffect(() => {
+    fetchAdmins();
+    fetchEligibleData();
+  }, []);
 
-  // --- 2. FILTER USERS ---
-  const adminUsers = users.filter(u => adminRoleNames.includes(u.role));
-  const eligibleEmployees = users.filter(u => !adminRoleNames.includes(u.role));
+  const fetchAdmins = async () => {
+    try {
+      const response = await fetch('/api/admins');
+      const data = await response.json();
+      setAdminUsers(data.admins || []);
+    } catch (error) {
+      console.error('Error fetching admins:', error);
+      setAdminUsers([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchEligibleData = async () => {
+    try {
+      const response = await fetch('/api/admins/eligible');
+      const data = await response.json();
+      setEligibleEmployees(data.employees || []);
+      setAdminRoleObjects(data.adminRoles || []);
+    } catch (error) {
+      console.error('Error fetching eligible data:', error);
+      setEligibleEmployees([]);
+      setAdminRoleObjects([]);
+    }
+  };
 
   // Filter for the custom dropdown
   const filteredEmployees = eligibleEmployees.filter(u => 
@@ -63,7 +91,8 @@ export default function ManageAdminPage() {
     setCurrentAdmin(null);
     setFormData({ 
         ...initialFormState, 
-        role: adminRoleObjects.length > 0 ? adminRoleObjects[0].name : '' 
+        role: adminRoleObjects.length > 0 ? adminRoleObjects[0].name : '',
+        roleId: adminRoleObjects.length > 0 ? adminRoleObjects[0].id : ''
     });
     setErrors({});
     setUserSearchTerm('');
@@ -76,7 +105,8 @@ export default function ManageAdminPage() {
         id: admin.id,
         name: admin.name, 
         email: admin.email, 
-        role: admin.role, 
+        role: admin.role,
+        roleId: admin.roleId,
         password: '', 
         confirmPassword: '' 
     });
@@ -100,7 +130,7 @@ export default function ManageAdminPage() {
     setIsUserDropdownOpen(false);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     setErrors({});
     const newErrors: any = {};
 
@@ -110,13 +140,19 @@ export default function ManageAdminPage() {
     }
 
     // 2. Role Validation
-    if (!formData.role) {
+    if (!formData.roleId) {
         newErrors.role = "Please select an admin role.";
     }
 
-    // 3. Password Validation
-    if (formData.password && formData.password !== formData.confirmPassword) {
-      newErrors.password = "Passwords do not match!";
+    // 3. Password Validation (Required for new admins)
+    if (!currentAdmin) {
+      if (!formData.password) {
+        newErrors.password = "Password is required for new admin accounts.";
+      } else if (formData.password !== formData.confirmPassword) {
+        newErrors.password = "Passwords do not match!";
+      } else if (formData.password.length < 6) {
+        newErrors.password = "Password must be at least 6 characters.";
+      }
     }
 
     if (Object.keys(newErrors).length > 0) {
@@ -124,25 +160,67 @@ export default function ManageAdminPage() {
         return;
     }
 
-    // UPDATE LOGIC
-    const originalUser = users.find(u => u.id === formData.id);
-    
-    if (originalUser) {
-        updateUser({ 
-            ...originalUser, 
-            name: formData.name, 
-            role: formData.role 
-            // We do not change email here
+    try {
+      if (currentAdmin) {
+        // UPDATE existing admin
+        const response = await fetch(`/api/admins/${formData.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ roleId: formData.roleId })
         });
-    }
 
-    setIsModalOpen(false);
+        if (!response.ok) throw new Error('Failed to update admin');
+        
+        await fetchAdmins();
+      } else {
+        // CREATE new admin (with auth account)
+        const response = await fetch('/api/admins', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: formData.id,
+            roleId: formData.roleId,
+            password: formData.password
+          })
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.details || 'Failed to create admin');
+        }
+        
+        await fetchAdmins();
+        await fetchEligibleData();
+      }
+
+      setIsModalOpen(false);
+    } catch (error: any) {
+      console.error('Error saving admin:', error);
+      alert(error.message || 'Failed to save admin. Please try again.');
+    }
   };
 
-  const handleDelete = () => {
-    if (currentAdmin) {
-      deleteUser(currentAdmin.id);
+  const handleDelete = async () => {
+    if (!currentAdmin) return;
+
+    try {
+      const response = await fetch(`/api/admins/${currentAdmin.id}`, {
+        method: 'DELETE'
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('Delete admin failed:', errorData);
+        alert(`Failed to delete admin: ${errorData.error || 'Unknown error'}\nDetails: ${errorData.details || ''}`);
+        return;
+      }
+
+      await fetchAdmins();
+      await fetchEligibleData();
       setIsDeleteModalOpen(false);
+    } catch (error) {
+      console.error('Error deleting admin:', error);
+      alert('Failed to delete admin. Please try again.');
     }
   };
 
@@ -202,60 +280,66 @@ export default function ManageAdminPage() {
 
         {/* Table Content */}
         <div className="flex-1 overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-gray-50 border-b border-gray-100 text-xs uppercase tracking-wider text-gray-500 font-bold">
-                <th className="p-4 pl-6">Username</th>
-                <th className="p-4">Email Address</th>
-                <th className="p-4">Admin Role</th>
-                <th className="p-4 text-right pr-6">Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {filteredAdmins.map((admin) => (
-                <tr key={admin.id} className="hover:bg-gray-50/50 transition-colors group">
-                  <td className="p-4 pl-6">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-purple-50 text-purple-600 flex items-center justify-center text-xs font-bold border border-purple-100 shadow-sm">
-                        {admin.avatar}
+          {loading ? (
+            <div className="flex items-center justify-center h-64">
+              <Loader2 className="animate-spin text-gray-300" size={32} />
+            </div>
+          ) : (
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-gray-50 border-b border-gray-100 text-xs uppercase tracking-wider text-gray-500 font-bold">
+                  <th className="p-4 pl-6">Username</th>
+                  <th className="p-4">Email Address</th>
+                  <th className="p-4">Admin Role</th>
+                  <th className="p-4 text-right pr-6">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {filteredAdmins.map((admin) => (
+                  <tr key={admin.id} className="hover:bg-gray-50/50 transition-colors group">
+                    <td className="p-4 pl-6">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-full bg-purple-50 text-purple-600 flex items-center justify-center text-xs font-bold border border-purple-100 shadow-sm">
+                          {admin.avatar}
+                        </div>
+                        <p className="text-sm font-bold text-gray-800">{admin.name}</p>
                       </div>
-                      <p className="text-sm font-bold text-gray-800">{admin.name}</p>
-                    </div>
-                  </td>
-                  <td className="p-4">
-                    <div className="flex items-center gap-2 text-sm text-gray-600">
-                      <Mail size={14} className="text-gray-400" />
-                      {admin.email}
-                    </div>
-                  </td>
-                  <td className="p-4">
-                    <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold bg-orange-50 text-brand border border-orange-100 whitespace-nowrap">
-                      <Shield size={12} />
-                      {admin.role}
-                    </span>
-                  </td>
-                  <td className="p-4 text-right pr-6">
-                    <div className="flex items-center justify-end gap-2">
-                        <button onClick={() => openEditModal(admin)} className="p-2 bg-white border border-gray-200 text-gray-500 rounded-lg hover:bg-orange-50 hover:text-brand hover:border-orange-200 transition-all shadow-sm active:scale-95" title="Edit Admin">
-                          <Pencil size={16} />
-                        </button>
-                        <button onClick={() => openDeleteModal(admin)} className="p-2 bg-white border border-gray-200 text-gray-500 rounded-lg hover:bg-red-50 hover:text-red-600 hover:border-red-100 transition-all shadow-sm active:scale-95" title="Delete Admin">
-                          <Trash2 size={16} />
-                        </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-              {filteredAdmins.length === 0 && (
-                <tr>
-                  <td colSpan={4} className="p-12 text-center text-gray-400">
-                    <UserCog size={48} className="mx-auto mb-3 opacity-20"/>
-                    <p>No admins found.</p>
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+                    </td>
+                    <td className="p-4">
+                      <div className="flex items-center gap-2 text-sm text-gray-600">
+                        <Mail size={14} className="text-gray-400" />
+                        {admin.email}
+                      </div>
+                    </td>
+                    <td className="p-4">
+                      <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold bg-orange-50 text-brand border border-orange-100 whitespace-nowrap">
+                        <Shield size={12} />
+                        {admin.role}
+                      </span>
+                    </td>
+                    <td className="p-4 text-right pr-6">
+                      <div className="flex items-center justify-end gap-2">
+                          <button onClick={() => openEditModal(admin)} className="p-2 bg-white border border-gray-200 text-gray-500 rounded-lg hover:bg-orange-50 hover:text-brand hover:border-orange-200 transition-all shadow-sm active:scale-95 cursor-pointer" title="Edit Admin">
+                            <Pencil size={16} />
+                          </button>
+                          <button onClick={() => openDeleteModal(admin)} className="p-2 bg-white border border-gray-200 text-gray-500 rounded-lg hover:bg-red-50 hover:text-red-600 hover:border-red-100 transition-all shadow-sm active:scale-95 cursor-pointer" title="Delete Admin">
+                            <Trash2 size={16} />
+                          </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+                {filteredAdmins.length === 0 && (
+                  <tr>
+                    <td colSpan={4} className="p-12 text-center text-gray-400">
+                      <UserCog size={48} className="mx-auto mb-3 opacity-20"/>
+                      <p>No admins found.</p>
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          )}
         </div>
       </div>
 
@@ -286,7 +370,7 @@ export default function ManageAdminPage() {
                         {formData.id ? (
                             <div className="flex items-center gap-2">
                                 <div className="w-6 h-6 rounded-full bg-brand text-white flex items-center justify-center text-xs font-bold">
-                                    {users.find(u => u.id === formData.id)?.avatar}
+                                    {eligibleEmployees.find(u => u.id === formData.id)?.avatar}
                                 </div>
                                 <div className="flex flex-col">
                                     <span className="text-sm font-bold text-gray-800 leading-none">{formData.name}</span>
@@ -359,22 +443,31 @@ export default function ManageAdminPage() {
                   <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Assign Role</label>
                   <div className="relative">
                       <select 
-                          value={formData.role} 
-                          onChange={e => setFormData({...formData, role: e.target.value})} 
+                          value={formData.roleId} 
+                          onChange={e => {
+                            const selectedRole = adminRoleObjects.find(r => r.id === e.target.value);
+                            setFormData({
+                              ...formData, 
+                              roleId: e.target.value,
+                              role: selectedRole?.name || ''
+                            });
+                          }} 
                           className={`w-full pl-4 pr-10 py-3 bg-white border rounded-xl text-sm font-medium focus:outline-none focus:ring-2 transition-all cursor-pointer appearance-none ${errors.role ? 'border-red-300 focus:ring-red-200' : 'border-gray-200 focus:ring-brand/20'}`}
                       >
-                          {adminRoleObjects.map(r => <option key={r.id} value={r.name}>{r.name}</option>)}
+                          {adminRoleObjects.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
                       </select>
                       <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" size={16} />
                   </div>
                   {errors.role && <p className="text-red-500 text-xs mt-1">{errors.role}</p>}
               </div>
 
-              {/* --- PASSWORD FIELDS (Optional for Edit) --- */}
+              {/* --- PASSWORD FIELDS (Required for Add) --- */}
               {!currentAdmin && (
                   <div className="grid grid-cols-2 gap-4 pt-2 border-t border-gray-50">
                     <div>
-                        <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Password</label>
+                        <label className="block text-xs font-bold text-gray-500 uppercase mb-1">
+                          Password <span className="text-red-500">*</span>
+                        </label>
                         <div className="relative">
                             <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
                             <input 
@@ -386,12 +479,15 @@ export default function ManageAdminPage() {
                                     ? 'border-red-300 focus:ring-red-200 focus:border-red-400' 
                                     : 'border-gray-200 focus:ring-brand/20 focus:bg-white'
                                 }`}
-                                placeholder="••••••••" 
+                                placeholder="Min. 6 characters" 
+                                required
                             />
                         </div>
                     </div>
                     <div>
-                        <label className="block text-xs font-bold text-gray-500 uppercase mb-1">Confirm Password</label>
+                        <label className="block text-xs font-bold text-gray-500 uppercase mb-1">
+                          Confirm Password <span className="text-red-500">*</span>
+                        </label>
                         <div className="relative">
                             <Lock className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
                             <input 
@@ -406,11 +502,15 @@ export default function ManageAdminPage() {
                                     ? 'border-red-300 focus:ring-red-200 focus:border-red-400' 
                                     : 'border-gray-200 focus:ring-brand/20 focus:bg-white'
                                 }`}
-                                placeholder="••••••••" 
+                                placeholder="Confirm password" 
+                                required
                             />
                         </div>
                     </div>
-                    {errors.password && <p className="col-span-2 text-red-500 text-xs text-center">{errors.password}</p>}
+                    {errors.password && <p className="col-span-2 text-red-500 text-xs text-center flex items-center justify-center gap-1"><AlertCircle size={12}/>{errors.password}</p>}
+                    <p className="col-span-2 text-xs text-gray-500 text-center">
+                      This password will be used to log in to the admin account.
+                    </p>
                   </div>
               )}
             </div>

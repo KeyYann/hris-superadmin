@@ -1,17 +1,17 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useNotifications } from '@/context/NotificationContext';
 import { 
   Search, Plus, Pencil, Trash2, Shield, 
-  X, AlertTriangle, Lock
+  X, AlertTriangle, Lock, Loader2
 } from 'lucide-react';
 
 export default function ManageRolesPage() {
-  // 1. Consume Roles and Actions from Global Context
-  const { roles, addRole, updateRole, deleteRole } = useNotifications();
-  
   const [searchQuery, setSearchQuery] = useState('');
+  
+  // Data State
+  const [roles, setRoles] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   
   // Modal States
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -20,17 +20,38 @@ export default function ManageRolesPage() {
 
   // Form State
   const [formData, setFormData] = useState({ name: '', description: '' });
+  const [errors, setErrors] = useState<{ name?: string }>({});
+
+  // Fetch roles on mount
+  useEffect(() => {
+    fetchRoles();
+  }, []);
+
+  const fetchRoles = async () => {
+    try {
+      const response = await fetch('/api/roles');
+      const data = await response.json();
+      setRoles(data.roles || []);
+    } catch (error) {
+      console.error('Error fetching roles:', error);
+      setRoles([]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // --- ACTIONS ---
   const openAddModal = () => {
     setCurrentRole(null);
     setFormData({ name: '', description: '' });
+    setErrors({});
     setIsModalOpen(true);
   };
 
   const openEditModal = (role: any) => {
     setCurrentRole(role);
     setFormData({ name: role.name, description: role.description });
+    setErrors({});
     setIsModalOpen(true);
   };
 
@@ -39,22 +60,76 @@ export default function ManageRolesPage() {
     setIsDeleteModalOpen(true);
   };
 
-  const handleSave = () => {
-    if (currentRole) {
-      // Update existing role via Context
-      updateRole({ ...currentRole, ...formData });
-    } else {
-      // Add new role via Context
-      addRole(formData);
+  const handleSave = async () => {
+    setErrors({});
+    
+    if (!formData.name.trim()) {
+      setErrors({ name: 'Role name is required' });
+      return;
     }
-    setIsModalOpen(false);
+
+    try {
+      if (currentRole) {
+        // Update existing role
+        const response = await fetch(`/api/roles/${currentRole.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(formData)
+        });
+
+        const data = await response.json();
+        
+        if (!response.ok) {
+          setErrors({ name: data.error || 'Failed to update role' });
+          return;
+        }
+        
+        await fetchRoles();
+      } else {
+        // Add new role
+        const response = await fetch('/api/roles', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(formData)
+        });
+
+        const data = await response.json();
+        
+        if (!response.ok) {
+          setErrors({ name: data.error || 'Failed to create role' });
+          return;
+        }
+        
+        await fetchRoles();
+      }
+      
+      setIsModalOpen(false);
+    } catch (error: any) {
+      console.error('Error saving role:', error);
+      setErrors({ name: 'Failed to save role. Please try again.' });
+    }
   };
 
-  const handleDelete = () => {
-    if (currentRole) {
-      // Delete role via Context
-      deleteRole(currentRole.id);
+  const handleDelete = async () => {
+    if (!currentRole) return;
+
+    try {
+      const response = await fetch(`/api/roles/${currentRole.id}`, {
+        method: 'DELETE'
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        alert(data.error || 'Failed to delete role');
+        return;
+      }
+
+      await fetchRoles();
       setIsDeleteModalOpen(false);
+    } catch (error) {
+      console.error('Error deleting role:', error);
+      alert('Failed to delete role. Please try again.');
     }
   };
 
@@ -135,58 +210,64 @@ export default function ManageRolesPage() {
 
         {/* Table */}
         <div className="flex-1 overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-gray-50 border-b border-gray-100 text-xs uppercase tracking-wider text-gray-500 font-bold">
-                <th className="p-4 pl-6">Role Name</th>
-                <th className="p-4 w-1/2">Description</th>
-                <th className="p-4 text-right pr-6">Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {filteredRoles.map((role) => (
-                <tr key={role.id} className="hover:bg-gray-50/50 transition-colors group">
-                  <td className="p-4 pl-6 align-top">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-orange-50 text-brand flex items-center justify-center border border-orange-100 shadow-sm shrink-0">
-                        <Shield size={20} />
+          {loading ? (
+            <div className="flex items-center justify-center h-64">
+              <Loader2 className="animate-spin text-gray-300" size={32} />
+            </div>
+          ) : (
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-gray-50 border-b border-gray-100 text-xs uppercase tracking-wider text-gray-500 font-bold">
+                  <th className="p-4 pl-6">Role Name</th>
+                  <th className="p-4 w-1/2">Description</th>
+                  <th className="p-4 text-right pr-6">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {filteredRoles.map((role) => (
+                  <tr key={role.id} className="hover:bg-gray-50/50 transition-colors group">
+                    <td className="p-4 pl-6 align-top">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-orange-50 text-brand flex items-center justify-center border border-orange-100 shadow-sm shrink-0">
+                          <Shield size={20} />
+                        </div>
+                        <span className="text-sm font-bold text-gray-800">{role.name}</span>
                       </div>
-                      <span className="text-sm font-bold text-gray-800">{role.name}</span>
-                    </div>
-                  </td>
-                  <td className="p-4 align-middle">
-                    <p className="text-sm text-gray-500 leading-snug">{role.description}</p>
-                  </td>
-                  <td className="p-4 text-right pr-6 align-middle">
-                    <div className="flex items-center justify-end gap-2">
-                        <button 
-                          onClick={() => openEditModal(role)}
-                          className="p-2 bg-white border border-gray-200 text-gray-500 rounded-lg hover:bg-orange-50 hover:text-brand hover:border-orange-200 transition-all shadow-sm active:scale-95"
-                          title="Edit Role"
-                        >
-                          <Pencil size={16} />
-                        </button>
-                        <button 
-                          onClick={() => openDeleteModal(role)}
-                          className="p-2 bg-white border border-gray-200 text-gray-500 rounded-lg hover:bg-red-50 hover:text-red-600 hover:border-red-100 transition-all shadow-sm active:scale-95"
-                          title="Delete Role"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-              {filteredRoles.length === 0 && (
-                <tr>
-                  <td colSpan={3} className="p-12 text-center text-gray-400">
-                    <Shield size={48} className="mx-auto mb-3 opacity-20"/>
-                    <p>No roles found.</p>
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+                    </td>
+                    <td className="p-4 align-middle">
+                      <p className="text-sm text-gray-500 leading-snug">{role.description}</p>
+                    </td>
+                    <td className="p-4 text-right pr-6 align-middle">
+                      <div className="flex items-center justify-end gap-2">
+                          <button 
+                            onClick={() => openEditModal(role)}
+                            className="p-2 bg-white border border-gray-200 text-gray-500 rounded-lg hover:bg-orange-50 hover:text-brand hover:border-orange-200 transition-all shadow-sm active:scale-95 cursor-pointer"
+                            title="Edit Role"
+                          >
+                            <Pencil size={16} />
+                          </button>
+                          <button 
+                            onClick={() => openDeleteModal(role)}
+                            className="p-2 bg-white border border-gray-200 text-gray-500 rounded-lg hover:bg-red-50 hover:text-red-600 hover:border-red-100 transition-all shadow-sm active:scale-95 cursor-pointer"
+                            title="Delete Role"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+                {filteredRoles.length === 0 && (
+                  <tr>
+                    <td colSpan={3} className="p-12 text-center text-gray-400">
+                      <Shield size={48} className="mx-auto mb-3 opacity-20"/>
+                      <p>No roles found.</p>
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          )}
         </div>
       </div>
 
@@ -207,10 +288,18 @@ export default function ManageRolesPage() {
                 <input 
                   type="text" 
                   value={formData.name}
-                  onChange={e => setFormData({...formData, name: e.target.value})}
-                  className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-brand/20 focus:bg-white transition-all"
+                  onChange={e => {
+                    setFormData({...formData, name: e.target.value});
+                    setErrors({});
+                  }}
+                  className={`w-full px-4 py-2.5 bg-gray-50 border rounded-xl text-sm font-medium focus:outline-none focus:ring-2 transition-all ${
+                    errors.name 
+                      ? 'border-red-300 focus:ring-red-200' 
+                      : 'border-gray-200 focus:ring-brand/20 focus:bg-white'
+                  }`}
                   placeholder="e.g. Project Manager"
                 />
+                {errors.name && <p className="text-red-500 text-xs mt-1">{errors.name}</p>}
               </div>
               
               <div>

@@ -1,14 +1,15 @@
 'use client';
 
-import { useState } from 'react';
-import { useNotifications } from '@/context/NotificationContext'; 
+import { useState, useEffect } from 'react';
 import { 
   Search, Filter, Pencil, Trash2, Mail, Building, Briefcase, 
   Plus, X, User, BriefcaseBusiness, ChevronDown, AlertCircle
 } from 'lucide-react';
 
 export default function UserManagementPage() {
-  const { users, addUser, updateUser, deleteUser, departments } = useNotifications(); 
+  const [users, setUsers] = useState<any[]>([]);
+  const [departments, setDepartments] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   
   const [searchQuery, setSearchQuery] = useState('');
   const [filterCompany, setFilterCompany] = useState('All');
@@ -38,12 +39,42 @@ export default function UserManagementPage() {
     'Probationary Employee'
   ];
 
+  // Fetch users and departments
+  useEffect(() => {
+    fetchUsers();
+    fetchDepartments();
+  }, []);
+
+  const fetchUsers = async () => {
+    try {
+      setIsLoading(true);
+      const response = await fetch('/api/users');
+      const data = await response.json();
+      setUsers(data.users || []);
+    } catch (error) {
+      console.error('Error fetching users:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const fetchDepartments = async () => {
+    try {
+      const response = await fetch('/api/departments');
+      const data = await response.json();
+      setDepartments(data.departments || []);
+    } catch (error) {
+      console.error('Error fetching departments:', error);
+    }
+  };
+
   // Helper: Filter only ACTIVE departments for dropdowns
-  const activeDepartments = departments.filter(d => d.status === 'Active');
-  const uniqueDepartments = ['All', ...Array.from(new Set(activeDepartments.map(d => d.name)))];
+  const activeDepartments = departments.filter((d: any) => d.status === 'Active');
+  const uniqueDepartments = ['All', ...Array.from(new Set(activeDepartments.map((d: any) => d.name)))];
 
   const getCompany = (email: string) => {
     if (email.toLowerCase().includes('bequik')) return 'BEQUIK';
+    if (email.toLowerCase().includes('abbeconsult')) return 'ABBE Consult';
     return 'ABBE'; 
   };
 
@@ -95,12 +126,11 @@ export default function UserManagementPage() {
     setIsDeleteModalOpen(true);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     // Reset errors
     setErrors({});
 
     // 1. Validate Email Domain
-    // Accept abbe, bequik, and abbeconsult variants
     const validDomains = [
         '@abbe.com', '@abbe.com.ph', 
         '@bequik.com', '@bequik.com.ph',
@@ -128,27 +158,70 @@ export default function UserManagementPage() {
       name: fullName,
       email: formData.email,
       department: formData.department,
-      employmentStatus: formData.employmentStatus, 
-      status: 'Active' 
+      employmentStatus: formData.employmentStatus
     };
 
-    if (currentUser) {
-      updateUser({ ...currentUser, ...userData });
-    } else {
-      addUser(userData);
+    try {
+      if (currentUser) {
+        // Update existing user
+        const response = await fetch(`/api/users/${currentUser.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(userData)
+        });
+        
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Failed to update user');
+        }
+        
+        await fetchUsers();
+      } else {
+        // Create new user
+        const response = await fetch('/api/users', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(userData)
+        });
+        
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || 'Failed to create user');
+        }
+        
+        await fetchUsers();
+      }
+      setIsModalOpen(false);
+    } catch (error: any) {
+      console.error('Error saving user:', error);
+      alert(error.message || 'Failed to save user. Please try again.');
     }
-    setIsModalOpen(false);
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (currentUser) {
-      deleteUser(currentUser.id);
-      setIsDeleteModalOpen(false);
+      try {
+        const response = await fetch(`/api/users/${currentUser.id}`, {
+          method: 'DELETE'
+        });
+        
+        if (!response.ok) {
+          const errorData = await response.json();
+          console.error('Delete failed:', errorData);
+          alert(`Failed to delete user: ${errorData.error || 'Unknown error'}`);
+          return;
+        }
+        
+        await fetchUsers();
+        setIsDeleteModalOpen(false);
+      } catch (error) {
+        console.error('Error deleting user:', error);
+        alert('Failed to delete user. Please try again.');
+      }
     }
   };
 
   const filteredUsers = users.filter(user => {
-    const isEmployee = !user.role.includes('Admin') && user.role !== 'Super Admin'; 
     const matchesSearch = user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
                           user.email.toLowerCase().includes(searchQuery.toLowerCase());
     const company = getCompany(user.email);
@@ -157,7 +230,7 @@ export default function UserManagementPage() {
     const matchesStatus = filterStatus === 'All' || empStatus === filterStatus;
     const matchesDepartment = filterDepartment === 'All' || user.department === filterDepartment;
 
-    return isEmployee && matchesSearch && matchesCompany && matchesStatus && matchesDepartment;
+    return matchesSearch && matchesCompany && matchesStatus && matchesDepartment;
   });
 
   return (
@@ -182,17 +255,17 @@ export default function UserManagementPage() {
       <div className="flex-1 bg-white rounded-3xl shadow-sm border border-gray-100 flex flex-col overflow-hidden">
         
         {/* Controls */}
-        <div className="p-5 border-b border-gray-100 flex flex-col lg:flex-row gap-4 justify-between items-center bg-gray-50/30">
+        <div className="p-5 border-b border-gray-100 flex flex-col sm:flex-row gap-4 justify-between items-center bg-gray-50/30">
           
           {/* SEARCH INPUT */}
-          <div className="relative w-full lg:w-96 group">
+          <div className="relative w-full sm:max-w-md group">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-brand transition-colors" size={18} />
             <input 
               type="text" 
               placeholder="Search by name or email..." 
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-10 py-2.5 bg-white border border-gray-200 rounded-xl text-sm font-medium focus:outline-none focus:ring-2 focus:ring-brand/20 shadow-sm placeholder:text-gray-400"
+              className="w-full pl-10 pr-10 py-3 bg-gray-50 border border-transparent rounded-xl text-sm font-medium focus:outline-none focus:bg-white focus:border-gray-200 focus:ring-4 focus:ring-brand/10 transition-all shadow-sm placeholder:text-gray-400"
             />
              {searchQuery && (
               <button 
@@ -204,7 +277,8 @@ export default function UserManagementPage() {
             )}
           </div>
 
-          <div className="flex flex-wrap items-center gap-3 w-full lg:w-auto">
+          {/* FILTERS AND COUNT */}
+          <div className="flex items-center gap-3">
               
               {/* Company Filter */}
               <div className="relative group">
@@ -250,9 +324,9 @@ export default function UserManagementPage() {
               </div>
 
               {/* Total Count */}
-              <div className="hidden xl:flex items-center gap-2 border-l pl-4 border-gray-200 ml-1">
-                 <span className="text-xs font-bold text-gray-400 uppercase tracking-wider">Total</span>
-                 <span className="bg-gray-200 text-gray-700 px-2.5 py-0.5 rounded-md text-xs font-bold shadow-sm">
+              <div className="flex items-center gap-2">
+                 <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Total</span>
+                 <span className="bg-gray-100 text-gray-700 px-3 py-1 rounded-full text-xs font-bold border border-gray-200 shadow-sm">
                    {filteredUsers.length}
                  </span>
               </div>
@@ -261,18 +335,26 @@ export default function UserManagementPage() {
 
         {/* Table */}
         <div className="flex-1 overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead>
-              <tr className="bg-gray-50 border-b border-gray-100 text-xs uppercase tracking-wider text-gray-500 font-bold">
-                <th className="p-4 pl-6">Employee Name</th>
-                <th className="p-4">Email Address</th>
-                <th className="p-4">Company</th>
-                <th className="p-4">Employment Status</th>
-                <th className="p-4 text-right pr-6">Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-50">
-              {filteredUsers.map((user) => {
+          {isLoading ? (
+            <div className="flex items-center justify-center h-64">
+              <div className="flex flex-col items-center gap-3">
+                <div className="w-12 h-12 border-4 border-gray-200 border-t-brand rounded-full animate-spin"></div>
+                <p className="text-sm text-gray-500 font-medium">Loading employees...</p>
+              </div>
+            </div>
+          ) : (
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-gray-50 border-b border-gray-100 text-xs uppercase tracking-wider text-gray-500 font-bold">
+                  <th className="p-4 pl-6">Employee Name</th>
+                  <th className="p-4">Email Address</th>
+                  <th className="p-4">Company</th>
+                  <th className="p-4">Employment Status</th>
+                  <th className="p-4 text-right pr-6">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {filteredUsers.map((user) => {
                 const company = getCompany(user.email);
                 const empStatus = user.employmentStatus || 'Regular Employee';
 
@@ -316,10 +398,10 @@ export default function UserManagementPage() {
 
                     <td className="p-4 text-right pr-6">
                       <div className="flex items-center justify-end gap-2">
-                          <button onClick={() => openEditModal(user)} className="p-2 bg-white border border-gray-200 text-gray-500 rounded-lg hover:bg-orange-50 hover:text-brand hover:border-orange-200 transition-all shadow-sm active:scale-95" title="Edit">
+                          <button onClick={() => openEditModal(user)} className="p-2 bg-white border border-gray-200 text-gray-500 rounded-lg hover:bg-orange-50 hover:text-brand hover:border-orange-200 transition-all shadow-sm active:scale-95 cursor-pointer" title="Edit">
                             <Pencil size={16} />
                           </button>
-                          <button onClick={() => openDeleteModal(user)} className="p-2 bg-white border border-gray-200 text-gray-500 rounded-lg hover:bg-red-50 hover:text-red-600 hover:border-red-100 transition-all shadow-sm active:scale-95" title="Remove">
+                          <button onClick={() => openDeleteModal(user)} className="p-2 bg-white border border-gray-200 text-gray-500 rounded-lg hover:bg-red-50 hover:text-red-600 hover:border-red-100 transition-all shadow-sm active:scale-95 cursor-pointer" title="Remove">
                             <Trash2 size={16} />
                           </button>
                       </div>
@@ -337,6 +419,7 @@ export default function UserManagementPage() {
               )}
             </tbody>
           </table>
+          )}
         </div>
       </div>
 
