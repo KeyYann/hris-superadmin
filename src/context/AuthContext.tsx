@@ -64,9 +64,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         .eq('id', userId)
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('Supabase error loading user:', error);
+        throw error;
+      }
 
       if (data) {
+        console.log('User data loaded:', { id: data.id, name: data.name, email: data.email });
         const role = Array.isArray(data.roles) ? data.roles[0] : data.roles;
         setUser({
           id: data.id,
@@ -76,9 +80,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           avatar: data.avatar,
           departmentId: data.department_id
         });
+      } else {
+        console.error('No user data returned from Supabase');
       }
     } catch (error) {
       console.error('Error loading user data:', error);
+      console.error('Error details:', JSON.stringify(error, null, 2));
     }
   };
 
