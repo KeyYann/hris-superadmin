@@ -51,10 +51,18 @@ export default function TimeOffPage() {
       }
       
       const response = await fetch(`/api/time-off?${params.toString()}`);
+      
+      if (!response.ok) {
+        console.error('Time-off API error:', response.status);
+        setTimeOffRequests([]);
+        return;
+      }
+      
       const data = await response.json();
       setTimeOffRequests(data.requests || []);
     } catch (error) {
       console.error('Error fetching time-off requests:', error);
+      setTimeOffRequests([]);
     } finally {
       setIsLoading(false);
     }

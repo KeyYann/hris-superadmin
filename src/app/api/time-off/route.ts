@@ -2,9 +2,16 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
 // Use service role key for admin operations
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+if (!supabaseUrl || !supabaseServiceKey) {
+  throw new Error('Missing Supabase environment variables');
+}
+
 const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  supabaseUrl,
+  supabaseServiceKey,
   {
     auth: {
       autoRefreshToken: false,
@@ -52,29 +59,35 @@ export async function GET(request: NextRequest) {
     // Filter by department for regular admins (not Super Admin)
     let filteredRequests = timeOffRequests || [];
     if (userRole !== 'Super Admin' && departmentId) {
-      filteredRequests = timeOffRequests?.filter(req => 
-        (req.users as any)?.department_id === departmentId
-      ) || [];
+      filteredRequests = timeOffRequests?.filter(req => {
+        const user = Array.isArray(req.users) ? req.users[0] : req.users;
+        return user?.department_id === departmentId;
+      }) || [];
     }
 
     // Format the data
-    const formattedRequests = filteredRequests.map(req => ({
-      id: req.id,
-      requestNumber: req.request_number || 'N/A',
-      user: (req.users as any)?.name || 'Unknown',
-      avatar: (req.users as any)?.avatar || 'UK',
-      email: (req.users as any)?.email || '',
-      role: (req.users as any)?.roles?.name || 'Employee',
-      submitted: new Date(req.submitted_at).toISOString().split('T')[0],
-      leaveDate: req.leave_date,
-      endDate: req.end_date,
-      type: req.leave_type,
-      status: req.status,
-      duration: req.duration,
-      isHalfDay: req.is_half_day,
-      halfDayPeriod: req.half_day_period,
-      message: req.message
-    }));
+    const formattedRequests = filteredRequests.map(req => {
+      const user = Array.isArray(req.users) ? req.users[0] : req.users;
+      const role = user?.roles ? (Array.isArray(user.roles) ? user.roles[0] : user.roles) : null;
+      
+      return {
+        id: req.id,
+        requestNumber: req.request_number || 'N/A',
+        user: user?.name || 'Unknown',
+        avatar: user?.avatar || 'UK',
+        email: user?.email || '',
+        role: role?.name || 'Employee',
+        submitted: new Date(req.submitted_at).toISOString().split('T')[0],
+        leaveDate: req.leave_date,
+        endDate: req.end_date,
+        type: req.leave_type,
+        status: req.status,
+        duration: req.duration,
+        isHalfDay: req.is_half_day,
+        halfDayPeriod: req.half_day_period,
+        message: req.message
+      };
+    });
 
     return NextResponse.json({ requests: formattedRequests });
 

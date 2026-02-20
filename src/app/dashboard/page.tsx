@@ -49,6 +49,11 @@ export default function DashboardPage() {
         }
         
         const response = await fetch(`/api/dashboard/stats?${params.toString()}`);
+        
+        if (!response.ok) {
+          throw new Error(`API returned ${response.status}: ${response.statusText}`);
+        }
+        
         const data = await response.json();
         
         // Ensure data has the expected structure

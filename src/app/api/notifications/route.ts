@@ -2,9 +2,16 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
 // Use service role key for admin operations
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+if (!supabaseUrl || !supabaseServiceKey) {
+  throw new Error('Missing Supabase environment variables');
+}
+
 const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  supabaseUrl,
+  supabaseServiceKey,
   {
     auth: {
       autoRefreshToken: false,
@@ -27,48 +34,29 @@ export async function GET(request: Request) {
       );
     }
 
-    // Fetch notifications for the user
+    // Fetch notifications for the user (without the problematic join)
     let notificationsQuery = supabaseAdmin
       .from('notifications')
-      .select(`
-        *,
-        time_off_requests (
-          user_id,
-          users (
-            department_id
-          )
-        )
-      `)
+      .select('*')
       .eq('user_id', userId);
 
     const { data: notifications, error } = await notificationsQuery
       .order('created_at', { ascending: false });
 
-    if (error) throw error;
-
-    // Filter by department for regular admins (not Super Admin)
-    let filteredNotifications = notifications || [];
-    if (userRole !== 'Super Admin' && departmentId) {
-      filteredNotifications = notifications?.filter(notif => {
-        // If notification has a related time_off_request, check department
-        if (notif.time_off_requests) {
-          const requestUser = (notif.time_off_requests as any)?.users;
-          return requestUser?.department_id === departmentId;
-        }
-        // Keep notifications without time_off_request relation
-        return true;
-      }) || [];
+    if (error) {
+      console.error('Error fetching notifications:', error);
+      throw error;
     }
 
-    // Format notifications
-    const formattedNotifications = filteredNotifications.map(notif => ({
+    // Format notifications (no filtering by department since we can't join)
+    const formattedNotifications = (notifications || []).map(notif => ({
       id: notif.id,
       type: notif.notification_type,
       message: notif.message,
       isRead: notif.is_read,
       timestamp: notif.created_at,
       time: getTimeAgo(notif.created_at)
-    })) || [];
+    }));
 
     // Count unread
     const unreadCount = formattedNotifications.filter(n => !n.isRead).length;

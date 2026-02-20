@@ -10,6 +10,7 @@ interface AuthUser {
   email: string;
   role: string;
   avatar: string;
+  departmentId?: string;
 }
 
 interface AuthContextType {
@@ -57,6 +58,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           name,
           email,
           avatar,
+          department_id,
           roles (name)
         `)
         .eq('id', userId)
@@ -65,12 +67,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (error) throw error;
 
       if (data) {
+        const role = Array.isArray(data.roles) ? data.roles[0] : data.roles;
         setUser({
           id: data.id,
           name: data.name,
           email: data.email,
-          role: data.roles?.name || 'Employee',
-          avatar: data.avatar
+          role: role?.name || 'Employee',
+          avatar: data.avatar,
+          departmentId: data.department_id
         });
       }
     } catch (error) {

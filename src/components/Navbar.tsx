@@ -54,6 +54,12 @@ export default function Navbar({ isExpanded, setIsExpanded, onCloseMobile }: Nav
       }
       
       const response = await fetch(`/api/notifications?${params.toString()}`);
+      
+      if (!response.ok) {
+        console.error('Notifications API error:', response.status);
+        return;
+      }
+      
       const data = await response.json();
       setUnreadCount(data.unreadCount || 0);
     } catch (error) {

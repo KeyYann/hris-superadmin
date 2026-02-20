@@ -2,9 +2,16 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
 // Use service role key for admin operations
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+if (!supabaseUrl || !supabaseServiceKey) {
+  throw new Error('Missing Supabase environment variables');
+}
+
 const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  supabaseUrl,
+  supabaseServiceKey,
   {
     auth: {
       autoRefreshToken: false,
@@ -129,7 +136,10 @@ export async function GET(request: Request) {
     const filterByDepartment = (requests: any[]) => {
       if (!requests) return [];
       if (userRole === 'Super Admin' || !departmentId) return requests;
-      return requests.filter(req => (req.users as any)?.department_id === departmentId);
+      return requests.filter(req => {
+        const user = Array.isArray(req.users) ? req.users[0] : req.users;
+        return user?.department_id === departmentId;
+      });
     };
 
     const filteredTimeOff = filterByDepartment(timeOffRequests || []);
@@ -138,66 +148,86 @@ export async function GET(request: Request) {
     const filteredOffset = filterByDepartment(offsetRequests || []);
 
     // Format the data to match frontend expectations
-    const formattedTimeOff = filteredTimeOff.map(req => ({
-      id: req.id,
-      user: (req.users as any)?.name || 'Unknown',
-      avatar: (req.users as any)?.avatar || 'UK',
-      role: (req.users as any)?.roles?.name || 'Employee',
-      submitted: new Date(req.submitted_at).toISOString().split('T')[0],
-      leaveDate: req.leave_date,
-      endDate: req.end_date,
-      type: req.leave_type,
-      status: req.status,
-      duration: `${req.duration} ${req.duration === 1 ? 'Day' : 'Days'}`,
-      isHalfDay: req.is_half_day,
-      halfDayPeriod: req.half_day_period,
-      message: req.message,
-      category: 'leave'
-    }));
+    const formattedTimeOff = filteredTimeOff.map(req => {
+      const user = Array.isArray(req.users) ? req.users[0] : req.users;
+      const role = user?.roles ? (Array.isArray(user.roles) ? user.roles[0] : user.roles) : null;
+      
+      return {
+        id: req.id,
+        user: user?.name || 'Unknown',
+        avatar: user?.avatar || 'UK',
+        role: role?.name || 'Employee',
+        submitted: new Date(req.submitted_at).toISOString().split('T')[0],
+        leaveDate: req.leave_date,
+        endDate: req.end_date,
+        type: req.leave_type,
+        status: req.status,
+        duration: `${req.duration} ${req.duration === 1 ? 'Day' : 'Days'}`,
+        isHalfDay: req.is_half_day,
+        halfDayPeriod: req.half_day_period,
+        message: req.message,
+        category: 'leave'
+      };
+    });
 
-    const formattedOvertime = filteredOvertime.map(req => ({
-      id: req.id,
-      user: (req.users as any)?.name || 'Unknown',
-      avatar: (req.users as any)?.avatar || 'UK',
-      role: (req.users as any)?.roles?.name || 'Employee',
-      submitted: new Date(req.submitted_at).toISOString().split('T')[0],
-      date: req.overtime_date,
-      startTime: req.start_time,
-      endTime: req.end_time,
-      hours: req.hours.toString(),
-      approvalType: req.approval_type,
-      reason: req.reason,
-      status: req.status,
-      category: 'overtime'
-    }));
+    const formattedOvertime = filteredOvertime.map(req => {
+      const user = Array.isArray(req.users) ? req.users[0] : req.users;
+      const role = user?.roles ? (Array.isArray(user.roles) ? user.roles[0] : user.roles) : null;
+      
+      return {
+        id: req.id,
+        user: user?.name || 'Unknown',
+        avatar: user?.avatar || 'UK',
+        role: role?.name || 'Employee',
+        submitted: new Date(req.submitted_at).toISOString().split('T')[0],
+        date: req.overtime_date,
+        startTime: req.start_time,
+        endTime: req.end_time,
+        hours: req.hours.toString(),
+        approvalType: req.approval_type,
+        reason: req.reason,
+        status: req.status,
+        category: 'overtime'
+      };
+    });
 
-    const formattedOfficialBusiness = filteredOfficialBusiness.map(req => ({
-      id: req.id,
-      user: (req.users as any)?.name || 'Unknown',
-      avatar: (req.users as any)?.avatar || 'UK',
-      role: (req.users as any)?.roles?.name || 'Employee',
-      submitted: new Date(req.submitted_at).toISOString().split('T')[0],
-      startDate: req.start_date,
-      endDate: req.end_date,
-      destination: req.destination,
-      purpose: req.purpose,
-      status: req.status,
-      category: 'official-business'
-    }));
+    const formattedOfficialBusiness = filteredOfficialBusiness.map(req => {
+      const user = Array.isArray(req.users) ? req.users[0] : req.users;
+      const role = user?.roles ? (Array.isArray(user.roles) ? user.roles[0] : user.roles) : null;
+      
+      return {
+        id: req.id,
+        user: user?.name || 'Unknown',
+        avatar: user?.avatar || 'UK',
+        role: role?.name || 'Employee',
+        submitted: new Date(req.submitted_at).toISOString().split('T')[0],
+        startDate: req.start_date,
+        endDate: req.end_date,
+        destination: req.destination,
+        purpose: req.purpose,
+        status: req.status,
+        category: 'official-business'
+      };
+    });
 
-    const formattedOffset = filteredOffset.map(req => ({
-      id: req.id,
-      user: (req.users as any)?.name || 'Unknown',
-      avatar: (req.users as any)?.avatar || 'UK',
-      role: (req.users as any)?.roles?.name || 'Employee',
-      submitted: new Date(req.submitted_at).toISOString().split('T')[0],
-      excessHours: req.excess_hours.toString(),
-      appliedLeaveDate: req.applied_leave_date,
-      appliedLeaveHours: req.applied_leave_hours.toString(),
-      justification: req.justification,
-      status: req.status,
-      category: 'offset'
-    }));
+    const formattedOffset = filteredOffset.map(req => {
+      const user = Array.isArray(req.users) ? req.users[0] : req.users;
+      const role = user?.roles ? (Array.isArray(user.roles) ? user.roles[0] : user.roles) : null;
+      
+      return {
+        id: req.id,
+        user: user?.name || 'Unknown',
+        avatar: user?.avatar || 'UK',
+        role: role?.name || 'Employee',
+        submitted: new Date(req.submitted_at).toISOString().split('T')[0],
+        excessHours: req.excess_hours.toString(),
+        appliedLeaveDate: req.applied_leave_date,
+        appliedLeaveHours: req.applied_leave_hours.toString(),
+        justification: req.justification,
+        status: req.status,
+        category: 'offset'
+      };
+    });
 
     return NextResponse.json({
       timeOff: formattedTimeOff,
